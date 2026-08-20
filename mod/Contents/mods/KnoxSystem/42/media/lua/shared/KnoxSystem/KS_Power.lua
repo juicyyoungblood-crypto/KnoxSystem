@@ -29,6 +29,24 @@ end
 
 function KnoxSystem.Power.clampData(data)
     if not data then return end
+    -- Prefer full migrate path if still over cap (refund before clamp)
+    if (tonumber(data.stat_power) or 0) > 10 and not data._powerOver10Refund_v0128 then
+        -- getPlayerData-style refund inline (ModData table already in hand)
+        local before = tonumber(data.stat_power) or 0
+        local refund = before
+        data.skill_points_unspent = (tonumber(data.skill_points_unspent) or 0) + refund
+        data.stat_power = 0
+        data.stat_strength = 0
+        if type(data.sp_cart_stats) == "table" then
+            data.sp_cart_stats.Power = nil
+            data.sp_cart_stats.Strength = nil
+        end
+        data._powerOver10Refund_v0128 = true
+        print(string.format(
+            "[KnoxSystem] Power over-cap refund (clampData): Power %d -> 0, +%d SP",
+            before, refund
+        ))
+    end
     local p = tonumber(data.stat_power) or tonumber(data.stat_strength) or 0
     if p < 0 then p = 0 end
     if p > POWER_MAX then p = POWER_MAX end

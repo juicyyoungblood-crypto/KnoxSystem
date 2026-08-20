@@ -33,6 +33,7 @@ stats:
       Strength skill UI/XP should use real level (System tab SP cart forced raw).
       Gameplay Lua that calls getPerkLevel(Strength) sees real+Power.
       Pure Java paths that bypass Lua getPerkLevel may need future bridges.
+      Migration: if save has Power>10 (pre-max10), one-shot refund ALL ranks at 1 SP each and reset Power to 0.
     draft_targets:
       - carry_capacity_related_outcomes
       - melee_damage_related_strength_outcomes

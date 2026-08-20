@@ -2,7 +2,7 @@
 -- Design SoT: /opt/data/workspace/pz-system-apocalypse/design/moddata_schema.yaml
 
 KnoxSystem = KnoxSystem or {}
-KnoxSystem.VERSION = "0.5.127"
+KnoxSystem.VERSION = "0.5.128"
 KnoxSystem.MOD_ID = "KnoxSystem"
 KnoxSystem.MODDATA_KEY = "KnoxSystem"
 KnoxSystem.SCHEMA_VERSION = 1
@@ -55,9 +55,42 @@ function KnoxSystem.getPlayerData(player)
             end
         end
         data.stat_power = tonumber(data.stat_power) or 0
-        if data.stat_power > 10 then data.stat_power = 10 end
         if data.stat_power < 0 then data.stat_power = 0 end
-        -- Mirror for any old readers
+
+        -- ≥0.5.128: Power max 10 @ 2 SP. If save still has Power > 10 (old 1 SP/lv max20),
+        -- refund ALL Power ranks at 1 SP each and reset Power to 0 (one-shot).
+        if not data._powerOver10Refund_v0128 then
+            local before = data.stat_power
+            if before > 10 then
+                local refund = before -- 1 SP per level (old cost)
+                data.skill_points_unspent = (tonumber(data.skill_points_unspent) or 0) + refund
+                data.stat_power = 0
+                data.stat_strength = 0
+                -- Drop pending Power in cart so it cannot re-apply old ranks for free
+                if type(data.sp_cart_stats) == "table" then
+                    data.sp_cart_stats.Power = nil
+                    data.sp_cart_stats.Strength = nil
+                end
+                print(string.format(
+                    "[KnoxSystem] Power over-cap refund: Power %d -> 0, +%d SP (1 SP/lv old rate); unspent now %d",
+                    before, refund, data.skill_points_unspent
+                ))
+                if KnoxSystem.Track and KnoxSystem.Track.log then
+                    pcall(function()
+                        KnoxSystem.Track.log("power", "overcap_refund", {
+                            beforePower = before,
+                            refundSp = refund,
+                            unspentAfter = data.skill_points_unspent,
+                            note = "Power>10 one-shot; 1 SP per level; reset to 0",
+                        })
+                    end)
+                end
+            end
+            data._powerOver10Refund_v0128 = true
+        end
+
+        -- Soft clamp after refund (should already be ≤10)
+        if data.stat_power > 10 then data.stat_power = 10 end
         data.stat_strength = data.stat_power
     end)
     return data
