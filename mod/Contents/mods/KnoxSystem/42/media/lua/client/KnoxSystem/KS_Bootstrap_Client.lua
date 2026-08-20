@@ -195,6 +195,11 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
         end
     end)
     pcall(function()
+        if KnoxSystem.Power and KnoxSystem.Power.onWeaponHitCharacter then
+            KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
+        end
+    end)
+    pcall(function()
         if not instanceof(attacker, "IsoPlayer") then return end
         if not instanceof(target, "IsoZombie") then return end
         if weapon and weapon.isRanged and weapon:isRanged() then return end
@@ -261,13 +266,7 @@ Events.OnCreatePlayer.Add(onCreatePlayer)
 Events.OnGameBoot.Add(function()
     if KnoxSystem.UI._patchCharacterInfo then KnoxSystem.UI._patchCharacterInfo() end
     if KnoxSystem.UI._patchInventoryTheme then KnoxSystem.UI._patchInventoryTheme() end
-    if KnoxSystem.Power and KnoxSystem.Power.hookPerkLevel then
-        pcall(function() KnoxSystem.Power.hookPerkLevel() end)
-    end
-    if KnoxSystem.Power and KnoxSystem.Power.hookUiRawDisplay then
-        pcall(function() KnoxSystem.Power.hookUiRawDisplay() end)
-    end
-    -- Logging only — never patches character window shell
+    -- Logging only — never patches character window shell / no Strength hook
     if KnoxSystem.StrengthProbe and KnoxSystem.StrengthProbe.boot then
         pcall(function() KnoxSystem.StrengthProbe.boot() end)
     end

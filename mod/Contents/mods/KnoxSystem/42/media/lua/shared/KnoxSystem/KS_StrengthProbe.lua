@@ -57,29 +57,25 @@ local function isLocalPlayer(obj)
 end
 
 local function strSnap(player)
-    local real, eff, pow, hooked = -1, -1, 0, -1
+    local real, pow = -1, 0
     pcall(function()
         if KnoxSystem.Power then
             if KnoxSystem.Power.level then pow = tonumber(KnoxSystem.Power.level(player)) or 0 end
             if KnoxSystem.Power.getStrengthReal then real = tonumber(KnoxSystem.Power.getStrengthReal(player)) or -1 end
-            if KnoxSystem.Power.getStrengthEffective then
-                eff = tonumber(KnoxSystem.Power.getStrengthEffective(player)) or -1
-            elseif real >= 0 then
-                eff = real + pow
-            end
         end
-        local p = Perks and (Perks.Strength or Perks.STRENGTH)
-        if p and player and player.getPerkLevel then
-            hooked = tonumber(player:getPerkLevel(p)) or -1
+        if real < 0 then
+            local p = Perks and (Perks.Strength or Perks.STRENGTH)
+            if p and player and player.getPerkLevel then
+                real = tonumber(player:getPerkLevel(p)) or -1
+            end
         end
     end)
     return {
         strengthReal = real,
-        strengthEffective = eff,
-        strengthGetPerkLevel = hooked,
         powerLv = pow,
-        over10 = (type(eff) == "number" and eff > 10) and 1 or 0,
-        boostGap = (type(eff) == "number" and type(real) == "number") and (eff - real) or -1,
+        carryBonus = pow * 1.0,
+        meleeBonusOn = (pow >= 1) and 1 or 0,
+        noteDesign = "Power=carry+1/lv +10% melee; no Strength hook",
     }
 end
 

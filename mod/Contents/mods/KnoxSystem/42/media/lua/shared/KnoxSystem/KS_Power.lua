@@ -1,18 +1,18 @@
--- Personal Power — hidden effective-Strength ranks (not a Skills-tab icon)
--- Design ≥0.5.127:
---   max 10, 2 SP/level (System tab only)
---   real Strength perk level + XP curve unchanged for display when read via raw API
---   Lua getPerkLevel(Strength) returns real + Power so checks that use perk level see the boost
--- Removed: melee bonus dmg, knockdown, carry MaxWeight, window smash mults
+-- Personal Power (System tab only, max 10 @ 2 SP)
+-- Design ≥0.5.136:
+--   NO getPerkLevel(Strength) hook
+--   Carry: +1 max weight per Power level (UCWF if present, else MaxWeightBonus)
+--   Melee: flat +10% of hit damage to zombie HP if Power≥1 (not bare hands/shove)
 require "KnoxSystem/KS_ModData"
 require "KnoxSystem/KS_TrackLog"
 
 KnoxSystem.Power = KnoxSystem.Power or {}
 
 local POWER_MAX = 10
-local _hooked = false
-local _rawDepth = 0
-local _hookDepth = 0
+local CARRY_PER_LEVEL = 1.0          -- +1 lb/kg unit per Power rank
+local MELEE_BONUS_FRAC = 0.10        -- flat 10% if Power ≥ 1
+local UCWF_MOD_ID = "UCWF"           -- Workshop: Unified Carry Weight Framework
+local UCWF_KEY = "KnoxSystem_Power"  -- unique modifier id for UCWF
 
 function KnoxSystem.Power.maxLevel()
     return POWER_MAX
@@ -29,9 +29,7 @@ end
 
 function KnoxSystem.Power.clampData(data)
     if not data then return end
-    -- Prefer full migrate path if still over cap (refund before clamp)
     if (tonumber(data.stat_power) or 0) > 10 and not data._powerOver10Refund_v0128 then
-        -- getPlayerData-style refund inline (ModData table already in hand)
         local before = tonumber(data.stat_power) or 0
         local refund = before
         data.skill_points_unspent = (tonumber(data.skill_points_unspent) or 0) + refund
@@ -54,192 +52,136 @@ function KnoxSystem.Power.clampData(data)
     data.stat_strength = p
 end
 
-local function isStrengthPerk(perk)
-    if perk == nil then return false end
-    if Perks then
-        if perk == Perks.Strength or perk == Perks.STRENGTH then return true end
-    end
-    local ok, name = pcall(function()
-        if type(perk.getName) == "function" then return tostring(perk:getName() or "") end
-        if type(perk.name) == "string" then return perk.name end
-        return tostring(perk)
-    end)
-    if ok and name then
-        local n = string.lower(name)
-        if n == "strength" or n:find("strength", 1, true) then return true end
-    end
-    return false
-end
-
---- Run fn with Strength getPerkLevel returning the REAL perk level (no Power).
---- Never rethrow — UI must stay alive.
-function KnoxSystem.Power.withRawPerkLevel(fn)
-    if type(fn) ~= "function" then return nil end
-    _rawDepth = _rawDepth + 1
-    local ok, a, b, c, d = pcall(fn)
-    _rawDepth = _rawDepth - 1
-    if not ok then
-        print("[KnoxSystem] withRawPerkLevel error: " .. tostring(a))
-        return nil
-    end
-    return a, b, c, d
-end
-
+--- Vanilla Strength perk only (no Power). Hook removed.
 function KnoxSystem.Power.getStrengthReal(player)
     if not player then return 0 end
     local lvl = 0
-    KnoxSystem.Power.withRawPerkLevel(function()
-        pcall(function()
-            local p = nil
-            if Perks then p = Perks.Strength or Perks.STRENGTH end
-            if p == nil and PerkFactory and PerkFactory.Perks then
-                p = PerkFactory.Perks.Strength
-            end
-            if p ~= nil and type(player.getPerkLevel) == "function" then
-                lvl = tonumber(player:getPerkLevel(p)) or 0
-            end
-        end)
+    pcall(function()
+        local p = nil
+        if Perks then p = Perks.Strength or Perks.STRENGTH end
+        if p == nil and PerkFactory and PerkFactory.Perks then
+            p = PerkFactory.Perks.Strength
+        end
+        if p ~= nil and type(player.getPerkLevel) == "function" then
+            lvl = tonumber(player:getPerkLevel(p)) or 0
+        end
     end)
     return lvl
 end
 
+--- Deprecated alias: effective == real (no Strength boost).
 function KnoxSystem.Power.getStrengthEffective(player)
-    return KnoxSystem.Power.getStrengthReal(player) + KnoxSystem.Power.level(player)
+    return KnoxSystem.Power.getStrengthReal(player)
 end
 
---- Deprecated mult API — always 1 (no more outcome multiplier).
 function KnoxSystem.Power.mult(_player)
     return 1
 end
 
-local function installGetPerkLevelHook(classTT)
-    if not classTT or not classTT.__index then return false end
-    local idx = classTT.__index
-    if type(idx) ~= "table" then return false end
-    if idx._knoxPowerGetPerkLevelHooked then return true end
-    local old = idx.getPerkLevel
-    if type(old) ~= "function" then return false end
-
-    idx.getPerkLevel = function(self, perk, ...)
-        if _hookDepth > 0 then
-            return old(self, perk, ...)
-        end
-        _hookDepth = _hookDepth + 1
-        local ok, real = pcall(old, self, perk, ...)
-        _hookDepth = _hookDepth - 1
-        if not ok then error(real) end
-
-        if _rawDepth > 0 then
-            return real
-        end
-
-        -- Only boost for IsoPlayer characters
-        local isP = false
-        pcall(function()
-            if self and instanceof and instanceof(self, "IsoPlayer") then isP = true end
-        end)
-        if not isP then return real end
-
-        if isStrengthPerk(perk) then
-            local add = KnoxSystem.Power.level(self)
-            if add > 0 then
-                local r = tonumber(real) or 0
-                return r + add
-            end
-        end
-        return real
-    end
-    idx._knoxPowerGetPerkLevelHooked = true
-    return true
+-- Stubs: hook fully removed
+function KnoxSystem.Power.withRawPerkLevel(fn)
+    if type(fn) == "function" then return fn() end
+    return nil
 end
-
-function KnoxSystem.Power.hookPerkLevel()
-    if _hooked then return true end
-    local okAny = false
-    pcall(function()
-        if IsoPlayer and IsoPlayer.class and __classmetatables then
-            local mt = __classmetatables[IsoPlayer.class]
-            if installGetPerkLevelHook(mt) then okAny = true end
-        end
-    end)
-    pcall(function()
-        if IsoGameCharacter and IsoGameCharacter.class and __classmetatables then
-            local mt = __classmetatables[IsoGameCharacter.class]
-            if installGetPerkLevelHook(mt) then okAny = true end
-        end
-    end)
-    -- Fallback: instance metatable on local player later
-    _hooked = okAny
-    return okAny
-end
-
-function KnoxSystem.Power.ensureInstanceHook(player)
-    if not player then return end
-    pcall(function()
-        local mt = getmetatable(player)
-        if mt and mt.__index and type(mt.__index) == "table" then
-            installGetPerkLevelHook(mt)
-        end
-    end)
-    -- Also try class tables again (boot order)
-    KnoxSystem.Power.hookPerkLevel()
-end
-
-function KnoxSystem.Power.onPlayerUpdate(player)
-    -- Keep instance hook alive + carry from Power (Java ignores getPerkLevel for maxWeight)
-    KnoxSystem.Power.ensureInstanceHook(player)
-    local data = KnoxSystem.getPlayerData(player)
-    if data then KnoxSystem.Power.clampData(data) end
-    if player then KnoxSystem.Power.syncCarry(player) end
-end
-
-function KnoxSystem.Power.onGameStart(player)
-    KnoxSystem.Power.hookPerkLevel()
-    KnoxSystem.Power.ensureInstanceHook(player)
-    pcall(function() KnoxSystem.Power.hookUiRawDisplay() end)
-    if player then
-        pcall(function() KnoxSystem.Power.syncCarry(player) end)
-    end
-    if player and KnoxSystem.Track and KnoxSystem.Track.isChannelOn("power") then
-        local real = KnoxSystem.Power.getStrengthReal(player)
-        local pow = KnoxSystem.Power.level(player)
-        KnoxSystem.Track.log("power", "perk_hook", {
-            reason = "game_start",
-            powerLv = pow,
-            strengthReal = real,
-            strengthEffective = real + pow,
-            hooked = _hooked and 1 or 0,
-            note = "getPerkLevel(Strength)=real+Power; carry via MaxWeightBonus; no Skills-tab icon",
-            liveApplied = (pow > 0) and 1 or 0,
-        })
-    end
-end
-
--- No-op stubs so old bootstrap calls do not error if a stale require path remains
+function KnoxSystem.Power.hookPerkLevel() return false end
+function KnoxSystem.Power.ensureInstanceHook(_player) end
+function KnoxSystem.Power.hookUiRawDisplay() return false end
 function KnoxSystem.Power.onMeleeHit(...) end
 function KnoxSystem.Power.hookSmashWindow() end
 function KnoxSystem.Power.bonusDamage(...) return 0 end
 
---- Carry: vanilla maxWeight ignores Lua getPerkLevel(Strength).
---- Observed B42-ish: Str5→~12, Str10→~20 ⇒ ~+1.6 capacity per Strength level.
---- Power adds that delta as MaxWeightBonus so UI total = natural + bonus.
-local CARRY_PER_POWER_LEVEL = 1.6
+-- -------- Carry (+1 per Power) --------
 local _carryLogMs = 0
+local _ucwfResolved = nil -- cache which API path works
 
-function KnoxSystem.Power.syncCarry(player)
-    if not player then return end
-    local data = KnoxSystem.getPlayerData(player)
-    if not data then return end
+local function ucwfPresent()
+    local ok = false
+    pcall(function()
+        if getActivatedMods then
+            local mods = getActivatedMods()
+            if mods and mods.contains and mods:contains(UCWF_MOD_ID) then ok = true end
+            if not ok and mods and mods.contains and mods:contains("UnifiedCarryWeightFramework") then ok = true end
+        end
+    end)
+    if not ok then
+        pcall(function()
+            if UCWF ~= nil then ok = true end
+            if UCWF_API ~= nil then ok = true end
+            if UnifiedCarryWeight ~= nil then ok = true end
+        end)
+    end
+    return ok
+end
 
-    local pow = KnoxSystem.Power.level(player)
-    local real = KnoxSystem.Power.getStrengthReal(player)
-    local eff = real + pow
-    local wantBonus = pow * CARRY_PER_POWER_LEVEL
-    if wantBonus < 0 then wantBonus = 0 end
+--- Try UCWF APIs (framework ships examples; names vary by version).
+local function applyUCWF(player, bonus)
+    if _ucwfResolved == false then return false, "ucwf_missing" end
 
-    local method = "none"
-    local before, after, natural = -1, -1, -1
+    local tried = {}
+    local function mark(name, ok)
+        tried[#tried + 1] = name .. (ok and "=ok" or "=no")
+        return ok
+    end
+
+    -- Lazy require common paths once
+    pcall(function() require "UCWF/UCWF" end)
+    pcall(function() require "UCWF" end)
+    pcall(function() require "shared/UCWF" end)
+
+    local api = rawget(_G, "UCWF") or rawget(_G, "UCWF_API") or rawget(_G, "UnifiedCarryWeight")
+
+    if type(api) == "table" then
+        -- Pattern A: setNamedModifier(player, key, { totalFlat = n })
+        if type(api.setModifier) == "function" then
+            local ok = pcall(api.setModifier, api, player, UCWF_KEY, { totalFlat = bonus, totalMult = 1, baseFlat = 0, baseMult = 1 })
+            if not ok then ok = pcall(api.setModifier, player, UCWF_KEY, bonus) end
+            if mark("setModifier", ok) and ok then _ucwfResolved = "setModifier"; return true, "UCWF.setModifier" end
+        end
+        if type(api.SetModifier) == "function" then
+            local ok = pcall(api.SetModifier, api, player, UCWF_KEY, { totalFlat = bonus })
+            if not ok then ok = pcall(api.SetModifier, player, UCWF_KEY, bonus) end
+            if mark("SetModifier", ok) and ok then _ucwfResolved = "SetModifier"; return true, "UCWF.SetModifier" end
+        end
+        if type(api.addTotalFlat) == "function" then
+            local ok = pcall(api.addTotalFlat, api, player, UCWF_KEY, bonus)
+            if not ok then ok = pcall(api.addTotalFlat, player, UCWF_KEY, bonus) end
+            if mark("addTotalFlat", ok) and ok then _ucwfResolved = "addTotalFlat"; return true, "UCWF.addTotalFlat" end
+        end
+        if type(api.setTotalWeightBonus) == "function" then
+            local ok = pcall(api.setTotalWeightBonus, api, player, UCWF_KEY, bonus)
+            if not ok then ok = pcall(api.setTotalWeightBonus, player, UCWF_KEY, bonus) end
+            if mark("setTotalWeightBonus", ok) and ok then _ucwfResolved = "setTotalWeightBonus"; return true, "UCWF.setTotalWeightBonus" end
+        end
+        if type(api.AddBonus) == "function" then
+            local ok = pcall(api.AddBonus, api, player, UCWF_KEY, bonus, "total")
+            if mark("AddBonus", ok) and ok then _ucwfResolved = "AddBonus"; return true, "UCWF.AddBonus" end
+        end
+        if type(api.registerBonus) == "function" then
+            local ok = pcall(api.registerBonus, api, UCWF_KEY, function(_p) return bonus end)
+            if mark("registerBonus", ok) and ok then _ucwfResolved = "registerBonus"; return true, "UCWF.registerBonus" end
+        end
+    end
+
+    -- Global helpers some versions export
+    if type(rawget(_G, "UCWF_SetPlayerTotalFlat")) == "function" then
+        local ok = pcall(UCWF_SetPlayerTotalFlat, player, UCWF_KEY, bonus)
+        if mark("UCWF_SetPlayerTotalFlat", ok) and ok then
+            _ucwfResolved = "UCWF_SetPlayerTotalFlat"
+            return true, "UCWF_SetPlayerTotalFlat"
+        end
+    end
+
+    if not ucwfPresent() then
+        _ucwfResolved = false
+        return false, "ucwf_not_loaded"
+    end
+    return false, "ucwf_api_unknown:" .. table.concat(tried, ",")
+end
+
+local function applyDIYCarry(player, data, bonus)
     local prev = tonumber(data._knoxPowerWeightBonus) or 0
+    local method = "none"
+    local before, after = -1, -1
 
     pcall(function()
         if type(player.getMaxWeight) == "function" then
@@ -254,26 +196,22 @@ function KnoxSystem.Power.syncCarry(player)
         if type(player.getMaxWeightBonus) == "function" then
             curBonus = tonumber(player:getMaxWeightBonus()) or 0
         end
-        -- Strip previous Knox bonus, keep other mods' bonus
         local others = curBonus - prev
         if others < 0 then others = 0 end
-        player:setMaxWeightBonus(others + wantBonus)
-        data._knoxPowerWeightBonus = wantBonus
+        player:setMaxWeightBonus(others + bonus)
+        data._knoxPowerWeightBonus = bonus
         okBonus = true
         method = "maxWeightBonus"
     end)
 
     if not okBonus then
-        -- Fallback: setMaxWeight each tick from estimated natural
         pcall(function()
             if type(player.setMaxWeight) ~= "function" or type(player.getMaxWeight) ~= "function" then return end
             local cur = tonumber(player:getMaxWeight()) or 0
-            -- If we previously scaled, recover natural ≈ cur - prev
-            natural = cur - prev
+            local natural = cur - prev
             if natural < 1 then natural = cur end
-            local target = natural + wantBonus
-            player:setMaxWeight(target)
-            data._knoxPowerWeightBonus = wantBonus
+            player:setMaxWeight(natural + bonus)
+            data._knoxPowerWeightBonus = bonus
             method = "setMaxWeight"
         end)
     end
@@ -282,12 +220,46 @@ function KnoxSystem.Power.syncCarry(player)
         if type(player.getMaxWeight) == "function" then
             after = tonumber(player:getMaxWeight()) or -1
         end
-        if natural < 0 and before >= 0 then
-            natural = before - prev
+    end)
+    return method, before, after
+end
+
+function KnoxSystem.Power.syncCarry(player)
+    if not player then return end
+    local data = KnoxSystem.getPlayerData(player)
+    if not data then return end
+
+    local pow = KnoxSystem.Power.level(player)
+    local wantBonus = pow * CARRY_PER_LEVEL
+    if wantBonus < 0 then wantBonus = 0 end
+
+    local before = -1
+    pcall(function()
+        if type(player.getMaxWeight) == "function" then
+            before = tonumber(player:getMaxWeight()) or -1
         end
     end)
 
-    -- Log occasionally on strength_apply / power
+    local method, after = "none", before
+    local ucwfOk, ucwfHow = applyUCWF(player, wantBonus)
+    if ucwfOk then
+        method = ucwfHow
+        -- Clear DIY leftover so we don't double-stack if we switched to UCWF
+        if (tonumber(data._knoxPowerWeightBonus) or 0) > 0 then
+            applyDIYCarry(player, data, 0)
+        end
+        pcall(function()
+            if type(player.getMaxWeight) == "function" then
+                after = tonumber(player:getMaxWeight()) or after
+            end
+        end)
+    else
+        local diyMethod, b2, a2 = applyDIYCarry(player, data, wantBonus)
+        method = diyMethod .. (ucwfHow and ("|" .. tostring(ucwfHow)) or "")
+        before = b2
+        after = a2
+    end
+
     local ms = 0
     if getTimestampMs then pcall(function() ms = getTimestampMs() or 0 end) end
     if ms - _carryLogMs > 4000 then
@@ -296,62 +268,129 @@ function KnoxSystem.Power.syncCarry(player)
             KnoxSystem.Track.log("strength_apply", "carry", {
                 reason = "carry",
                 powerLv = pow,
-                strengthReal = real,
-                strengthEffective = eff,
                 ourBonus = wantBonus,
-                perLevel = CARRY_PER_POWER_LEVEL,
+                perLevel = CARRY_PER_LEVEL,
                 maxWeightBefore = before,
                 maxWeightAfter = after,
                 method = method,
-                note = "Power carry bridge (Java maxWeight ignores getPerkLevel)",
+                note = "Power carry +1/level; UCWF preferred, DIY fallback; no Strength hook",
+            })
+        elseif KnoxSystem.Track and KnoxSystem.Track.isChannelOn("power") then
+            KnoxSystem.Track.log("power", "carry", {
+                reason = "carry",
+                powerLv = pow,
+                ourBonus = wantBonus,
+                maxWeightAfter = after,
+                method = method,
             })
         end
     end
 end
 
---- Skills pips: show REAL Strength. Do NOT wrap ISCharacterInfoWindow shell
---- (that killed System tab + blue chrome when combined with other UI patches).
-local function wrapUiFn(tbl, methodName)
-    if type(tbl) ~= "table" then return false end
-    local key = "_knoxPowerRaw_" .. tostring(methodName)
-    if tbl[key] then return true end
-    local old = tbl[methodName]
-    if type(old) ~= "function" then return false end
-    tbl[methodName] = function(self, a1, a2, a3, a4, a5, a6, a7, a8)
-        if KnoxSystem.Power and KnoxSystem.Power.withRawPerkLevel then
-            return KnoxSystem.Power.withRawPerkLevel(function()
-                return old(self, a1, a2, a3, a4, a5, a6, a7, a8)
-            end)
-        end
-        return old(self, a1, a2, a3, a4, a5, a6, a7, a8)
-    end
-    tbl[key] = true
-    return true
-end
-
-local function wrapUiType(globalName, methods)
+-- -------- Melee +10% (Power ≥ 1, not bare hands) --------
+function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
+    if not attacker or not target then return end
+    local isP, isZ = false, false
     pcall(function()
-        pcall(function() require("ISUI/" .. globalName) end)
-        pcall(function() require("ISUI/PlayerData/" .. globalName) end)
-        local tbl = _G[globalName]
-        if type(tbl) ~= "table" then return end
-        for _, m in ipairs(methods) do
-            wrapUiFn(tbl, m)
+        if instanceof and instanceof(attacker, "IsoPlayer") then isP = true end
+    end)
+    if not isP then return end
+    pcall(function()
+        if attacker.isLocalPlayer and not attacker:isLocalPlayer() then isP = false end
+    end)
+    if not isP then return end
+
+    local pow = KnoxSystem.Power.level(attacker)
+    if pow < 1 then return end
+
+    pcall(function()
+        if instanceof and instanceof(target, "IsoZombie") then isZ = true end
+    end)
+    if not isZ then return end
+    local alive = true
+    pcall(function()
+        if target.isAlive and not target:isAlive() then alive = false end
+    end)
+    if not alive then return end
+
+    -- Skip shove / bare hands
+    local bare = false
+    pcall(function()
+        if weapon and weapon.isBareHands and weapon:isBareHands() then bare = true end
+        if not bare and weapon and weapon.getFullType then
+            local ft = string.lower(tostring(weapon:getFullType() or ""))
+            if ft:find("barehands", 1, true) then bare = true end
         end
     end)
-end
+    if bare then return end
 
-function KnoxSystem.Power.hookUiRawDisplay()
-    local methods = { "prerender", "render", "update", "renderLevel", "drawLevel" }
-    -- Skill widgets only — never the character window shell
-    for _, name in ipairs({
-        "ISSkillProgressBar",
-        "ISCharacterScreen",
-        "ISCharacterInfo",
-    }) do
-        wrapUiType(name, methods)
+    local dmg = tonumber(damage) or 0
+    if dmg <= 0 then return end
+    local bonus = dmg * MELEE_BONUS_FRAC
+    if bonus <= 0 then return end
+
+    local hpBefore, hpAfter = -1, -1
+    pcall(function()
+        if target.getHealth then hpBefore = tonumber(target:getHealth()) or -1 end
+        local nh = hpBefore - bonus
+        if nh < 0 then nh = 0 end
+        if target.setHealth then target:setHealth(nh) end
+        if target.getHealth then hpAfter = tonumber(target:getHealth()) or nh end
+    end)
+
+    -- Throttle combat spam (~4 hits/sec max log)
+    local ms = 0
+    if getTimestampMs then pcall(function() ms = getTimestampMs() or 0 end) end
+    if not KnoxSystem.Power._lastMeleeLogMs then KnoxSystem.Power._lastMeleeLogMs = 0 end
+    if (ms - KnoxSystem.Power._lastMeleeLogMs) >= 250 then
+        KnoxSystem.Power._lastMeleeLogMs = ms
+        if KnoxSystem.Track and KnoxSystem.Track.isChannelOn("strength_apply") then
+            KnoxSystem.Track.log("strength_apply", "melee_bonus", {
+                reason = "melee_bonus",
+                powerLv = pow,
+                hitDamage = dmg,
+                bonusFrac = MELEE_BONUS_FRAC,
+                bonusDamage = bonus,
+                hpBefore = hpBefore,
+                hpAfter = hpAfter,
+                note = "flat 10% bonus if Power>=1; not bare hands",
+            })
+        elseif KnoxSystem.Track and KnoxSystem.Track.isChannelOn("damage") then
+            KnoxSystem.Track.log("damage", "power_melee_bonus", {
+                reason = "melee_bonus",
+                powerLv = pow,
+                hitDamage = dmg,
+                bonusDamage = bonus,
+                hpAfter = hpAfter,
+            })
+        end
     end
-    return true
 end
 
-print("[KnoxSystem] KS_Power loaded (hidden Strength+Power; carry MaxWeightBonus; no TimedAction/window wraps)")
+function KnoxSystem.Power.onPlayerUpdate(player)
+    local data = KnoxSystem.getPlayerData(player)
+    if data then KnoxSystem.Power.clampData(data) end
+    if player then KnoxSystem.Power.syncCarry(player) end
+end
+
+function KnoxSystem.Power.onGameStart(player)
+    if player then
+        pcall(function() KnoxSystem.Power.syncCarry(player) end)
+    end
+    if player and KnoxSystem.Track and KnoxSystem.Track.isChannelOn("power") then
+        local pow = KnoxSystem.Power.level(player)
+        local real = KnoxSystem.Power.getStrengthReal(player)
+        KnoxSystem.Track.log("power", "game_start", {
+            reason = "game_start",
+            powerLv = pow,
+            strengthReal = real,
+            carryPerLevel = CARRY_PER_LEVEL,
+            meleeBonusFrac = MELEE_BONUS_FRAC,
+            ucwfPresent = ucwfPresent() and 1 or 0,
+            note = "Power=carry+1/lv + flat 10% melee; NO Strength getPerkLevel hook",
+            liveApplied = (pow > 0) and 1 or 0,
+        })
+    end
+end
+
+print("[KnoxSystem] KS_Power loaded (carry+1/lv, melee+10%, no Strength hook)")

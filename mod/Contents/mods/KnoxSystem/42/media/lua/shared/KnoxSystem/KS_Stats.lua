@@ -165,7 +165,7 @@ function KnoxSystem.Stats.applyAll(player, data)
     local power = tonumber(data.stat_power) or tonumber(data.stat_strength) or 0
     data.stat_power = power
     data.stat_strength = power -- legacy mirror
-    -- Power no longer uses outcome mult; effective Strength = real + Power via getPerkLevel hook
+    -- Power = carry +1/lv + flat 10% melee (no Strength hook / no damage mult)
     data._strMult = 1
     data._powerMult = 1
     data._endMult = 1 + MAG * (data.stat_endurance or 0)
@@ -181,7 +181,7 @@ function KnoxSystem.Stats.applyAll(player, data)
 end
 
 function KnoxSystem.Stats.meleeDamageMult(player)
-    return 1 -- Power no longer multiplies damage; Strength perk checks include Power
+    return 1 -- Power uses flat HP snip on hit, not a pre-mult
 end
 
 function KnoxSystem.Stats.enduranceMult(player)
@@ -196,17 +196,10 @@ function KnoxSystem.Stats.snapshotPower(player)
     if data then KnoxSystem.Stats.applyAll(player, data) end
     local personal = data and (tonumber(data.stat_power) or tonumber(data.stat_strength) or 0) or 0
     local basePerk = -1
-    local effPerk = -1
-    if KnoxSystem.Power then
-        if KnoxSystem.Power.getStrengthReal then
-            basePerk = KnoxSystem.Power.getStrengthReal(player)
-        end
-        if KnoxSystem.Power.getStrengthEffective then
-            effPerk = KnoxSystem.Power.getStrengthEffective(player)
-        end
+    if KnoxSystem.Power and KnoxSystem.Power.getStrengthReal then
+        basePerk = KnoxSystem.Power.getStrengthReal(player)
     else
         basePerk = perkLevel(player, "Strength") or -1
-        effPerk = basePerk
     end
     return {
         personalPower = personal,
@@ -215,10 +208,10 @@ function KnoxSystem.Stats.snapshotPower(player)
         strengthMult = 1,
         magPerLevel = 0,
         baseStrengthPerk = basePerk,
-        effectiveStrengthPerk = effPerk,
-        design = "hidden_effective_strength_ranks",
+        effectiveStrengthPerk = basePerk, -- no Strength hook
+        design = "carry_plus_melee_bonus",
         liveApplied = (personal > 0) and 1 or 0,
-        note = "getPerkLevel(Strength)=real+Power; no Skills-tab icon; max10 @ 2SP",
+        note = "Power: +1 carry/lv + flat 10% melee; no getPerkLevel Strength hook; max10 @ 2SP",
     }
 end
 
