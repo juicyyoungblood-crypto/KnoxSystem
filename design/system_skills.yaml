@@ -1,0 +1,171 @@
+# Knox System — System Skills (SP-purchased, not vanilla perks)
+# Distinct from Personal Stats (Strength/Endurance/Mind/Resilience) and Class Skills.
+status: live_0.5.54
+numbers_status: locked_for_mvp_structure
+
+# ---------------------------------------------------------------------------
+# Naming conventions (LOCKED for Analyze + future elite modifiers)
+# ---------------------------------------------------------------------------
+# Player fields (ModData KnoxSystem):
+#   skill_analyze          int 0..2
+#   skill_d_storage        int 0..8   (B42 custom bag Capacity ~49; L9–10 scripts kept unused)
+#
+# Zombie ModData (stamp + Analyze read):
+#   knoxTier               int 0..4
+#   knoxTierName           string  Untouched|Stirred|Marked|Claimed|Apex
+#   knoxElite              bool
+#   knoxTags               comma tags e.g. tough_skin,heavy_hit
+#   knoxHpMult / knoxDmgMult / knoxSpeedMult / knoxSightMult / knoxHearMult
+#   knoxSprinter           bool
+#   knoxHealthPeak         number  for Analyze HP bars
+#   knoxEliteMods[]        FUTURE list of modifier ids (Analyze L2 plates)
+#
+# Analyze elite modifier ids (FUTURE — do not rename):
+#   knoxmod.<id> display via Analyze L2 plates
+#   Reserved ids:
+#     knoxmod.tough_skin
+#     knoxmod.heavy_hit
+#     knoxmod.relentless
+#     knoxmod.system_hardened
+#     knoxmod.elite_core          (generic elite flag — L1 plate covers this)
+#   Plate text format: "[mod:<id>]" or short label from ANALYZE_MOD_LABELS
+#
+# Analyze UI gates (LOCKED split — user corrected):
+#   analyze_level >= 1  →  HP bars, generic elite nameplates, loot rarity row colors
+#   analyze_level >= 2  →  floating combat damage numbers, mods line (walk + elite tags)
+#   L1 does NOT show combat numbers or mod lines.
+#
+# Plate lines (separate chat tags so they don't merge):
+#   line1 knox_dmg   → "12.5"                 (L2, on hit)
+#   line2 knox_hp    → "HP [||||||....] 60%"  (L1+, LOS gated)
+#   line3 knox_mod   → "Heavy Hit - Thick Skin" (L2, plain labels, " - " join)
+#   elite knox_elite → "* ELITE T# Name *"    (L1+, LOS gated)
+# Visibility: CanSee / LosUtil; max dist ~14; short chat range so text fades with zombies.
+#
+# D. Storage item type names (scripts, B42 ItemType=Container):
+#   L1 right: KnoxSystem.DimensionalStorage / Base.KS_DimStorage_R
+#   L2 left:  KnoxSystem.DimensionalStorageLeft / Base.KS_DimStorage_L
+#   L3–10:    KnoxSystem.KS_DimStorage_R{n} / L{n} (+ Base twins) — scripts retained
+#   live skill max: 8 (B42 Capacity hard ~49; L8 formula 50 → live clamp 49)
+#   capacity: L1–2 = 20; L3–8 = 20 + (level-2)*5  (L8 live = 49)
+# Item modData:
+#   knoxDStorage = "front" | "back"
+#   knoxDStorageLevel = int
+#   knoxBound = true
+# Body locations (rings):
+#   Right_RingFinger / Left_RingFinger
+
+rules:
+  cart_tab: stats  # shown with personal stats; Confirm Stat Spend commits both
+  sp_shared: true
+
+skills:
+  Analyze:
+    id: analyze
+    field: skill_analyze
+    display: Analyze
+    max_level: 2
+    sp_cost_per_level: 5
+    levels:
+      1:
+        id: analyze_l1
+        effects:
+          - zombie_health_bars
+          - elite_nameplates            # generic * ELITE T# Name * only (KS_EliteTell)
+          - loot_rarity_row_colors
+        loot_rarity:
+          colors_rgba_0_1:
+            trash:     { r: 0.45, g: 0.45, b: 0.45 }   # grey — ItemTag Junk
+            common:    { r: 0.92, g: 0.92, b: 0.92 }   # white
+            uncommon:  { r: 0.20, g: 0.80, b: 0.30 }   # green
+            rare:      { r: 0.25, g: 0.45, b: 1.00 }   # blue
+            epic:      { r: 0.65, g: 0.25, b: 0.90 }   # purple
+            legendary: { r: 1.00, g: 0.55, b: 0.10 }   # orange
+          distribution: standard_rpg_except_trash_uses_junk_tag
+      2:
+        id: analyze_l2
+        requires: analyze_l1
+        effects:
+          - floating_combat_numbers     # line1 knox_dmg
+          - mods_line                   # line3 "Heavy Hit - Thick Skin" (walk + knoxTags + knoxEliteMods)
+        elite_modifier_plate_format: "{Label} - {Label}"   # no [mod:] prefix
+        elite_modifier_source_fields: [knoxTags, knoxEliteMods, walkType]
+        # When adding new elite combat mods later, stamp knoxEliteMods and/or knoxTags;
+        # Analyze L2 will pick them up via ANALYZE_MOD_LABELS map — no Analyze rewrite needed.
+        # tough_skin displays as "Thick Skin".
+
+  DStorage:
+    id: d_storage
+    field: skill_d_storage
+    display: "D. Storage"
+    max_level: 8
+    sp_cost_per_level: 5
+    capacity_rule: "L1-2=20; L3-8=+5 each; live clamp Capacity≤49 (B42); L9-10 scripts unused"
+    note: "Item scripts through L10 kept for future capacity-framework; skill purchase stops at 8."
+    levels:
+      1:
+        id: dstorage_l1
+        item_right: KnoxSystem.DimensionalStorage
+        body_location: Right_RingFinger
+        capacity_lbs: 20
+        weight_reduction_percent: 100
+        bound: true
+        not_lootable: true
+        not_droppable: true
+        not_unequippable: true
+        remove_on_death: true
+      2:
+        id: dstorage_l2
+        item_left: KnoxSystem.DimensionalStorageLeft
+        body_location: Left_RingFinger
+        capacity_lbs: 20
+        weight_reduction_percent: 100
+        bound: true
+        not_lootable: true
+        not_droppable: true
+        not_unequippable: true
+        remove_on_death: true
+      3:
+        id: dstorage_l3
+        item_right: KnoxSystem.KS_DimStorage_R3
+        item_left: KnoxSystem.KS_DimStorage_L3
+        capacity_lbs: 25
+      4:
+        id: dstorage_l4
+        item_right: KnoxSystem.KS_DimStorage_R4
+        item_left: KnoxSystem.KS_DimStorage_L4
+        capacity_lbs: 30
+      5:
+        id: dstorage_l5
+        item_right: KnoxSystem.KS_DimStorage_R5
+        item_left: KnoxSystem.KS_DimStorage_L5
+        capacity_lbs: 35
+      6:
+        id: dstorage_l6
+        item_right: KnoxSystem.KS_DimStorage_R6
+        item_left: KnoxSystem.KS_DimStorage_L6
+        capacity_lbs: 40
+      7:
+        id: dstorage_l7
+        item_right: KnoxSystem.KS_DimStorage_R7
+        item_left: KnoxSystem.KS_DimStorage_L7
+        capacity_lbs: 45
+      8:
+        id: dstorage_l8
+        item_right: KnoxSystem.KS_DimStorage_R8
+        item_left: KnoxSystem.KS_DimStorage_L8
+        capacity_lbs: 50
+      9:
+        id: dstorage_l9
+        item_right: KnoxSystem.KS_DimStorage_R9
+        item_left: KnoxSystem.KS_DimStorage_L9
+        capacity_lbs: 55
+      10:
+        id: dstorage_l10
+        item_right: KnoxSystem.KS_DimStorage_R10
+        item_left: KnoxSystem.KS_DimStorage_L10
+        capacity_lbs: 60
+    upgrade_on_level:
+      transfer_contents_old_to_new: true
+      delete_old_when_empty: true
+    icon: KS_DStorage

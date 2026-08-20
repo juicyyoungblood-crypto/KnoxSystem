@@ -1,0 +1,70 @@
+# Thief — designed; stub until after Warrior MVP
+id: thief
+display_name: Thief
+mvp: false
+implementation: stub
+status: draft_numbers
+unlock_personal_level: 10
+selectable_in_mvp: false
+
+description: >
+  Lockwork, loot luck, and backline kills. High-impact loot tools are option-gated.
+
+class_skills:
+  - id: Scavenger
+    display_name: Scavenger
+    level_min: 0
+    level_max_default: 10
+    xp:
+      table: triple_regular_base_skill
+      sources:
+        - open_locked_window
+        - open_locked_door
+        - open_locked_car
+        - search_unsearched_inventory
+      xp_per_event:
+        open_locked_window: 15
+        open_locked_door: 20
+        open_locked_car: 25
+        search_unsearched_inventory: 8
+    effects_per_level:
+      lock_open_ease: 0.04
+      loot_rarity_bonus: 0.03
+      container_reroll_chance: 0.02
+      reroll_behavior: >
+        On first search of a container, chance to roll an additional loot
+        application from the table and merge results (not replace).
+    mod_options:
+      loot_growth: ScavengerLootGrowth  # 0–5, default 1 = standard
+    risk: high
+    personal_xp_bucket: survivalist
+
+  - id: Backstab
+    display_name: Backstab
+    level_min: 0
+    level_max_default: 10
+    xp:
+      table: triple_regular_base_skill
+      sources:
+        - hit_zombie_from_behind
+      xp_per_hit: 10
+      optional_scale_with_damage: true
+    effects_per_level:
+      sneak_effectiveness: 0.03
+      lightfooted_effectiveness: 0.03
+      rear_hit_damage_bonus: 0.05
+    personal_xp_bucket: combat
+
+  - id: Dodge
+    display_name: Dodge
+    level_min: 0
+    level_max_default: 10
+    xp:
+      table: triple_regular_base_skill
+      sources:
+        - zombie_kill_small: 2
+        - successful_dodge_zombie_attack: 25
+    effects_per_level:
+      nimble_effectiveness: 0.03
+      dodge_chance_vs_zombie_attack: 0.015  # +1.5% per level draft
+    personal_xp_bucket: agility

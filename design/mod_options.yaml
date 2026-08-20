@@ -1,0 +1,51 @@
+# Knox System — player-facing / sandbox options
+status: draft_numbers
+
+personal_xp_weights:
+  description: Per-skill or per-bucket overrides for Personal XP minting
+  type: nested_float_map
+  default: see weights.yaml
+
+skill_point_schedule:
+  description: Override SP grants (per-level and milestone bonuses)
+  type: data_driven_schedule
+  default: one_sp_per_personal_level
+
+firebolt_ignition:
+  id: FireboltIgnitionMode
+  description: What Firebolt may set alight
+  type: enum
+  default: all_flammable
+  values:
+    - id: all_flammable
+      label: All flammable material (structures and trees)
+    - id: all_structures
+      label: All structures (prebuilt and constructed)
+    - id: prebuilt_structures_only
+      label: Prebuilt structures only
+    - id: none
+      label: None (damage only, no ignition)
+
+scavenger_loot_growth:
+  id: ScavengerLootGrowth
+  description: >
+    Multiplier on Scavenger loot rarity / reroll strength.
+    0 = disabled benefits; 1 = designed standard; up to 5 = extreme.
+  type: float
+  min: 0
+  max: 5
+  default: 1.0
+  step: 0.1
+
+# Placeholders for intensity — structure locked in world_scaling.yaml / ADR 0019
+world_scaling:
+  enabled:
+    type: bool
+    default: true
+    status: locked_structure
+  intensity:
+    type: float
+    min: 0
+    max: 2
+    default: 1.0
+    status: draft_numbers

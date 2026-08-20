@@ -1,0 +1,3 @@
+# World threat is time+PL hybrid with spawn-stamped evolution tiers and elites
+
+Zombie difficulty stays on top of vanilla sandbox (peak day, population, strength settings). Personal Level and days survived together weight a System tier roll when each zombie spawns; the tier is stamped for that zombie’s life (no live global rescale). Tiers are banded plateaus (Untouched → Apex) with an evolution stat/tag kit plus a rare elite promote roll. UI shows a coarse World Rank on the System Tab (higher = harder world). Player fantasy is preserved via modest class numbers, resource taxes, and enemy adaptations (e.g. system_hardened vs Charge/spells)—not by gutting loot/enchants. High-tier rates are capped by band tables so the endgame is hard PZ, not pure sponges.

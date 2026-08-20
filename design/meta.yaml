@@ -1,0 +1,56 @@
+# Knox System — package metadata
+# status values: locked | locked_structure | draft_numbers | deferred
+
+mod:
+  id: KnoxSystem
+  display_name: Knox System
+  target_game: Project Zomboid
+  target_build: "42"
+  unsupported_builds: ["41"]
+  project_root: /opt/data/workspace/pz-system-apocalypse
+
+mvp:
+  description: >
+    Lore/Rising, Personal Level+XP, SP into base skills and Personal Stats,
+    System Tab, class pick at PL10, Warrior fully realized. Other classes
+    designed but not selectable. Specializations deferred. World scaling
+    structure locked; UI theme includes character sheet + inventory/crafting.
+  fully_implemented_classes: [warrior]
+  stub_classes: [thief, ranger, mage, crafter]
+  specializations: deferred  # PL 25 and 50
+  quest_personal_xp_hooks: deferred
+  success_criteria_platform: single_player
+  multiplayer: backbone_required_untested
+  ui_tab_name: System
+
+sources_of_truth:
+  language: CONTEXT.md
+  decisions: docs/adr/
+  mechanics: design/
+
+numbers_policy:
+  default_status: draft_numbers
+  all_magnitudes_tunable: true
+  expose_as_mod_options_where_player_facing: true
+  comment: >
+    First-pass numbers exist for playtest. Prefer named keys over magic
+    constants. World scaling structure is locked; tier mults/weights remain draft_numbers.
+
+files:
+  - design/meta.yaml
+  - design/lore.yaml
+  - design/progression.yaml
+  - design/weights.yaml
+  - design/stats.yaml
+  - design/mod_options.yaml
+  - design/occupations.yaml
+  - design/world_scaling.yaml
+  - design/ui.yaml
+  - design/moddata_schema.yaml
+  - design/classes/warrior.yaml
+  - design/classes/thief.yaml
+  - design/classes/ranger.yaml
+  - design/classes/mage.yaml
+  - design/classes/crafter.yaml
+  - docs/architecture.md
+  - docs/deploy-and-access.md

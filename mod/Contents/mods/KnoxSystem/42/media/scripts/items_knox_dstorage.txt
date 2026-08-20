@@ -1,0 +1,1098 @@
+module KnoxSystem
+{
+	imports
+	{
+		Base
+	}
+
+	/* B42: ItemType=Container + root Capacity/WeightReduction.
+	   L1-2 base bags; L3-10 KS_DimStorage_R# / L# (+5 cap/level).
+	   Icon → item_KS_DStorage.png */
+
+	item DimensionalStorage
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage I,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 20,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Right_RingFinger,
+			CanBeEquipped = Right_RingFinger,
+			ClothingItem = Ring_Right_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 20,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item DimensionalStorageLeft
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage II,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 20,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Left_RingFinger,
+			CanBeEquipped = Left_RingFinger,
+			ClothingItem = Ring_Left_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 20,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_R3
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage I,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 25,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Right_RingFinger,
+			CanBeEquipped = Right_RingFinger,
+			ClothingItem = Ring_Right_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 25,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_L3
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage II,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 25,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Left_RingFinger,
+			CanBeEquipped = Left_RingFinger,
+			ClothingItem = Ring_Left_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 25,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_R4
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage I,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 30,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Right_RingFinger,
+			CanBeEquipped = Right_RingFinger,
+			ClothingItem = Ring_Right_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 30,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_L4
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage II,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 30,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Left_RingFinger,
+			CanBeEquipped = Left_RingFinger,
+			ClothingItem = Ring_Left_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 30,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_R5
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage I,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 35,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Right_RingFinger,
+			CanBeEquipped = Right_RingFinger,
+			ClothingItem = Ring_Right_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 35,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_L5
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage II,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 35,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Left_RingFinger,
+			CanBeEquipped = Left_RingFinger,
+			ClothingItem = Ring_Left_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 35,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_R6
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage I,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 40,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Right_RingFinger,
+			CanBeEquipped = Right_RingFinger,
+			ClothingItem = Ring_Right_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 40,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_L6
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage II,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 40,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Left_RingFinger,
+			CanBeEquipped = Left_RingFinger,
+			ClothingItem = Ring_Left_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 40,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_R7
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage I,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 45,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Right_RingFinger,
+			CanBeEquipped = Right_RingFinger,
+			ClothingItem = Ring_Right_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 45,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_L7
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage II,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 45,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Left_RingFinger,
+			CanBeEquipped = Left_RingFinger,
+			ClothingItem = Ring_Left_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 45,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_R8
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage I,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 50,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Right_RingFinger,
+			CanBeEquipped = Right_RingFinger,
+			ClothingItem = Ring_Right_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 50,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_L8
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage II,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 50,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Left_RingFinger,
+			CanBeEquipped = Left_RingFinger,
+			ClothingItem = Ring_Left_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 50,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_R9
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage I,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 55,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Right_RingFinger,
+			CanBeEquipped = Right_RingFinger,
+			ClothingItem = Ring_Right_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 55,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_L9
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage II,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 55,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Left_RingFinger,
+			CanBeEquipped = Left_RingFinger,
+			ClothingItem = Ring_Left_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 55,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_R10
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage I,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 60,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Right_RingFinger,
+			CanBeEquipped = Right_RingFinger,
+			ClothingItem = Ring_Right_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 60,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_L10
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage II,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 60,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Left_RingFinger,
+			CanBeEquipped = Left_RingFinger,
+			ClothingItem = Ring_Left_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 60,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+}
+
+module Base
+{
+	/* Base twins — same shape; Lua prefers KnoxSystem.* */
+
+	item KS_DimStorage_R
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage I,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 20,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Right_RingFinger,
+			CanBeEquipped = Right_RingFinger,
+			ClothingItem = Ring_Right_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 20,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_L
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage II,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 20,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Left_RingFinger,
+			CanBeEquipped = Left_RingFinger,
+			ClothingItem = Ring_Left_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 20,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_R3
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage I,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 25,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Right_RingFinger,
+			CanBeEquipped = Right_RingFinger,
+			ClothingItem = Ring_Right_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 25,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_L3
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage II,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 25,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Left_RingFinger,
+			CanBeEquipped = Left_RingFinger,
+			ClothingItem = Ring_Left_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 25,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_R4
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage I,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 30,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Right_RingFinger,
+			CanBeEquipped = Right_RingFinger,
+			ClothingItem = Ring_Right_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 30,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_L4
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage II,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 30,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Left_RingFinger,
+			CanBeEquipped = Left_RingFinger,
+			ClothingItem = Ring_Left_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 30,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_R5
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage I,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 35,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Right_RingFinger,
+			CanBeEquipped = Right_RingFinger,
+			ClothingItem = Ring_Right_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 35,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_L5
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage II,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 35,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Left_RingFinger,
+			CanBeEquipped = Left_RingFinger,
+			ClothingItem = Ring_Left_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 35,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_R6
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage I,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 40,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Right_RingFinger,
+			CanBeEquipped = Right_RingFinger,
+			ClothingItem = Ring_Right_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 40,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_L6
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage II,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 40,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Left_RingFinger,
+			CanBeEquipped = Left_RingFinger,
+			ClothingItem = Ring_Left_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 40,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_R7
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage I,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 45,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Right_RingFinger,
+			CanBeEquipped = Right_RingFinger,
+			ClothingItem = Ring_Right_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 45,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_L7
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage II,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 45,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Left_RingFinger,
+			CanBeEquipped = Left_RingFinger,
+			ClothingItem = Ring_Left_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 45,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_R8
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage I,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 50,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Right_RingFinger,
+			CanBeEquipped = Right_RingFinger,
+			ClothingItem = Ring_Right_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 50,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_L8
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage II,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 50,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Left_RingFinger,
+			CanBeEquipped = Left_RingFinger,
+			ClothingItem = Ring_Left_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 50,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_R9
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage I,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 55,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Right_RingFinger,
+			CanBeEquipped = Right_RingFinger,
+			ClothingItem = Ring_Right_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 55,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_L9
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage II,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 55,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Left_RingFinger,
+			CanBeEquipped = Left_RingFinger,
+			ClothingItem = Ring_Left_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 55,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_R10
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage I,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 60,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Right_RingFinger,
+			CanBeEquipped = Right_RingFinger,
+			ClothingItem = Ring_Right_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 60,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+	item KS_DimStorage_L10
+	{
+		ItemType = Container,
+		DisplayName = Dimensional Storage II,
+		DisplayCategory = Accessory,
+		Weight = 0.001,
+		Icon = KS_DStorage,
+		WorldStaticModel = Ring_Ground,
+		// Root Capacity/WeightReduction required for B42 InstanceItem
+		Capacity = 60,
+		WeightReduction = 100,
+
+		component Clothing
+		{
+			BodyLocation = Left_RingFinger,
+			CanBeEquipped = Left_RingFinger,
+			ClothingItem = Ring_Left_RingFinger_Silver,
+			Cosmetic = true,
+		}
+
+		component Container
+		{
+			Capacity = 60,
+			WeightReduction = 100,
+			OpenSound = OpenBag,
+			CloseSound = CloseBag,
+			PutInSound = PutItemInBag,
+		}
+	}
+
+}

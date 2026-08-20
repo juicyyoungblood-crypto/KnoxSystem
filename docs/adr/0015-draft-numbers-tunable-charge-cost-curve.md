@@ -1,0 +1,3 @@
+# Full draft numbers; Charge cost from uses-before-moodle anchors
+
+The design package includes first-pass numeric values for all classes and systems, marked as draft and exposed as heuristic/mod-option tunables (not buried constants). Charge stamina cost is not literal “20 minutes of sprint”; it is a percentage of max stamina that decreases with Charge level. Anchors: from full stamina, uses before the first endurance moodle would appear — level 1 = 2 uses, level 10 = 4, level 20 = 10 — with interpolation between anchors. Default Class Skill cap remains 10; the level-20 anchor exists for raised caps and future content.

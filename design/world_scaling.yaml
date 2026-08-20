@@ -1,0 +1,238 @@
+# Knox System — world / zombie threat vs player power
+status: locked_structure
+numbers_status: draft_numbers
+
+goal: >
+  As the survivor’s Personal Level rises, the chance of encountering higher-tier,
+  faster, more powerful System-touched zombies rises. Fantasy kits stay strong;
+  the apocalypse keeps teeth. Not a pure OP stomping mod.
+
+philosophy:
+  player_kit_nerfs: avoid_gutting_fantasy
+  primary_answers_to_power:
+    - modest_draft_class_magnitudes
+    - resource_taxes  # Charge stamina, mana, materials
+    - zombie_evolution_and_elites
+    - threat_gated_spawns
+  do_not:
+    - silently_nerf_loot_or_enchant_fantasy
+    - replace_vanilla_sandbox_population_curve
+
+relationship_to_vanilla:
+  layer: on_top_of_vanilla_sandbox
+  respects:
+    - peak_day
+    - population_multiplier
+    - vanilla_strength_sprinter_etc_settings
+  system_threat: additional_tier_roll_and_elite_layer
+
+# ---------------------------------------------------------------------------
+# Driver
+# ---------------------------------------------------------------------------
+driver:
+  type: time_plus_personal_level_hybrid
+  personal_level:
+    role: >
+      Raises weight toward higher System tiers when a zombie is spawned
+      (or assigned a tier). Higher PL → higher chance of faster/stronger tiers.
+  world_time:
+    role: >
+      Vanilla day/peak curve still governs baseline density and world pressure.
+      System tiers ride on top; early days stay mostly low-tier even at lucky PL
+      spikes, late days allow high tiers more often even at moderate PL.
+  formula_status: draft_numbers
+
+# ---------------------------------------------------------------------------
+# World Rank (UI)
+# ---------------------------------------------------------------------------
+world_rank:
+  shown_on_system_tab: true
+  ui_label: World Rank
+  specificity: coarse
+  player_facing_copy: >
+    A single rising number: higher means a harder world (more chance of
+    higher-tier and elite System zombies). Not a full stat breakdown.
+  on_zombie_nameplates: false
+  living_tells:
+    eye_glow_elites_only: true
+    glow_scales_with_strength: true
+  corpse_tells:
+    named_corpse: true
+    format: tier_name_only
+  computation_draft:
+    type: band_index_from_personal_level_and_day
+    inputs: [personal_level, days_survived]
+    display: band_max_reachable_now
+  note: Exact formula tunable; readability > simulation detail.
+  legacy_name: Knox Threat Level
+  ui_label: World Rank
+
+
+
+# ---------------------------------------------------------------------------
+# Bands / tiers (plateaus)
+# ---------------------------------------------------------------------------
+tiers:
+  # Zombie System tier IDs. Spawn picks a tier from a weighted table.
+  - id: 0
+    name: Untouched
+    pl_band_flavor: "0-9"
+    description: Vanilla-equivalent; no System mutation package.
+  - id: 1
+    name: Stirred
+    pl_band_flavor: "10-24"
+    description: Slightly tougher/faster; light System tell.
+  - id: 2
+    name: Marked
+    pl_band_flavor: "25-49"
+    description: Noticeably stronger; occasional special tag.
+  - id: 3
+    name: Claimed
+    pl_band_flavor: "50-99"
+    description: Pack threats; multiple mutation tags possible.
+  - id: 4
+    name: Apex
+    pl_band_flavor: "100"
+    description: Rare peak threats; never the whole crowd.
+
+# Soft plateaus: weights shift by PL band and day band; not unbounded sponges.
+cap_philosophy: banded_tiers_with_diminishing_high_tier_rate
+
+# ---------------------------------------------------------------------------
+# Spawn-time stamp (locked choice)
+# ---------------------------------------------------------------------------
+assignment:
+  type: spawn_time_stamp
+  behavior: >
+    When a zombie is created, roll its System tier once from the current
+    weight table (PL + day). That tier is frozen on the zombie for its life.
+  consequences:
+    - Backtracking can yield weaker older zombies mixed with new spawns.
+    - Preferred for performance and simplicity vs constantly re-scaling living zeds.
+  re_roll_on_existing: false
+
+# ---------------------------------------------------------------------------
+# What scales (evolution kit + elite layer)
+# ---------------------------------------------------------------------------
+packages:
+  evolution_kit:
+    enabled: true
+    per_tier_draft:
+      0:
+        hp_mult: 1.0
+        damage_mult: 1.0
+        speed_mult: 1.0
+        hearing_mult: 1.0
+        tags: []
+      1:
+        hp_mult: 1.15
+        damage_mult: 1.10
+        speed_mult: 1.05
+        hearing_mult: 1.05
+        tags: [tough_skin]
+      2:
+        hp_mult: 1.35
+        damage_mult: 1.20
+        speed_mult: 1.10
+        hearing_mult: 1.10
+        tags: [tough_skin, heavy_hit]
+      3:
+        hp_mult: 1.60
+        damage_mult: 1.35
+        speed_mult: 1.15
+        hearing_mult: 1.20
+        tags: [tough_skin, heavy_hit, relentless]
+      4:
+        hp_mult: 2.00
+        damage_mult: 1.50
+        speed_mult: 1.20
+        hearing_mult: 1.25
+        tags: [tough_skin, heavy_hit, relentless, system_hardened]
+    tag_effects_draft:
+      tough_skin: { damage_taken_mult: 0.9 }
+      heavy_hit: { damage_dealt_mult: 1.15 }
+      relentless: { endurance_damage_to_player_mult: 1.1, stumble_resist: 0.1 }
+      system_hardened:
+        description: >
+          Partial resistance to burst openers (e.g. reduced Charge damage,
+          slightly reduced first-hit spell burst). Keeps high tiers from
+          being free lunch for Warrior/Mage openers.
+        charge_damage_taken_mult: 0.75
+        first_spell_hit_damage_taken_mult: 0.8
+
+  elite_layer:
+    enabled: true
+    description: >
+      Mostly normal-tier crowd for the roll; a separate rare roll may promote
+      a spawn to Elite (nameplate/tell + extra package) without making every
+      zed a mini-boss.
+    base_chance_by_tier:
+      0: 0.00
+      1: 0.02
+      2: 0.04
+      3: 0.07
+      4: 0.12
+    elite_extra_draft:
+      hp_mult: 1.5
+      damage_mult: 1.25
+      speed_mult: 1.05
+      bonus_tags: 1
+      loot_or_threat_tell: true
+
+# ---------------------------------------------------------------------------
+# Spawn weight tables (draft)
+# ---------------------------------------------------------------------------
+# weights_for_tier[t] before normalize. Blend PL table with day table.
+spawn_weights:
+  blend:
+    personal_level_weight: 0.55
+    day_weight: 0.45
+  by_personal_level_band:
+    # PL 0-9
+    "0-9":   { 0: 90, 1: 10, 2: 0,  3: 0,  4: 0 }
+    "10-24": { 0: 60, 1: 30, 2: 10, 3: 0,  4: 0 }
+    "25-49": { 0: 35, 1: 35, 2: 22, 3: 8,  4: 0 }
+    "50-99": { 0: 15, 1: 30, 2: 35, 3: 18, 4: 2 }
+    "100":   { 0: 5,  1: 20, 2: 35, 3: 30, 4: 10 }
+  by_day_band:
+    # Align loosely with common Peak Day mental model; tunable
+    "0-14":    { 0: 85, 1: 15, 2: 0,  3: 0, 4: 0 }
+    "15-30":   { 0: 55, 1: 30, 2: 15, 3: 0, 4: 0 }
+    "31-60":   { 0: 30, 1: 35, 2: 25, 3: 10, 4: 0 }
+    "61-120":  { 0: 15, 1: 30, 2: 35, 3: 18, 4: 2 }
+    "121+":    { 0: 10, 1: 25, 2: 35, 3: 25, 4: 5 }
+
+# ---------------------------------------------------------------------------
+# Multiplayer backbone
+# ---------------------------------------------------------------------------
+multiplayer:
+  status: backbone
+  spawn_stamp_uses: host_or_nearest_player_pl_option
+  options_draft:
+    - id: threat_reference
+      values: [host_personal_level, nearest_player, max_party_personal_level]
+      default: host_personal_level
+  note: SP success criteria; MP must not corrupt tier fields on zombies.
+
+# ---------------------------------------------------------------------------
+# Mod options
+# ---------------------------------------------------------------------------
+mod_options:
+  enabled: world_scaling.enabled
+  intensity: world_scaling.intensity  # scales high-tier weights and/or mults
+
+intensity_application_draft:
+  # intensity 1.0 = tables as written; 0 = force tier 0; 2 = double high-tier weight mass
+  high_tier_weight_scale: intensity
+  elite_chance_scale: intensity
+
+# ---------------------------------------------------------------------------
+# Design sanity targets (not hard code)
+# ---------------------------------------------------------------------------
+sanity_targets:
+  pl0_week1: overwhelmingly_tier_0_feels_like_vanilla_plus_lore
+  pl10_warrior_unlock: tier_1_common_enough_to_notice_not_dominate
+  pl25: tier_2_regular_tier_3_uncommon_elites_memorable
+  pl50: tier_3_part_of_life_apex_rare
+  pl100: apex_exists_never_all_spawns
+  charge_and_spells: still_good_but_system_hardened_elites_respect_openers

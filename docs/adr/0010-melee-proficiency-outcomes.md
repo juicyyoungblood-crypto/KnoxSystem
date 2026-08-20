@@ -1,0 +1,3 @@
+# Melee Proficiency buffs real melee outcomes including stomps
+
+Melee Proficiency XP comes from damage to zombies via melee weapons, bare hands, and foot stomps — never shoves/pushes or ranged. The skill must make that melee (including stomps) both faster and harder-hitting. Prefer a single “increase effectiveness of base melee combat skills” lever when that already scales speed and damage; if vanilla effectiveness only covers one, add an explicit second lever for the other. Outcome stacking with Personal Strength and weapon skills is multiplicative in MVP with no hard cap (tune magnitudes in balance passes).

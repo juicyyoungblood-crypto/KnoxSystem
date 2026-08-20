@@ -1,0 +1,3 @@
+# Firebolt and Scavenger are option-gated; Enchanting ships as pitched
+
+Firebolt ignition targets are sandbox/mod options: all flammable (structures and trees), all structures (prebuilt and constructed), prebuilt structures only, or none. Scavenger loot growth is a numeric mod option from 0 to 5 (1 = standard/designed growth). Enchanting keeps the pitched trait-unlock-by-level model (level 0 minor traits; higher levels unlock higher-cost imbues) without a silent nerf in the base design. High-impact behaviors stay in the doc with explicit options rather than being removed.

@@ -1,0 +1,32 @@
+# Knox System — occupation flavor only (no mechanical lock)
+status: draft_numbers
+
+rules:
+  mechanical_dependency_on_class: none
+  ui: preferred_class_tagline_on_occupation
+
+# Draft taglines — tune copy freely
+preferred_class_by_occupation:
+  fireofficer: warrior
+  policeofficer: ranger
+  parkranger: ranger
+  constructionworker: crafter
+  securityguard: warrior
+  carpenter: crafter
+  burglar: thief
+  chef: crafter
+  repairman: crafter
+  farmer: ranger
+  fisherman: ranger
+  doctor: mage
+  nurse: mage
+  veteran: warrior
+  lumberjack: warrior
+  fitnessinstructor: warrior
+  electrician: crafter
+  engineer: mage
+  metalworker: crafter
+  blacksmith: crafter
+  unemployed: null
+
+tagline_template: "System affinity: {class_display_name}"

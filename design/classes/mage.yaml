@@ -1,0 +1,92 @@
+# Mage — designed; stub until after Warrior MVP
+id: mage
+display_name: Mage
+mvp: false
+implementation: stub
+status: draft_numbers
+unlock_personal_level: 10
+selectable_in_mvp: false
+
+description: >
+  Mana-fueled System powers. Mind scales damage, pool, and regen. Firebolt
+  ignition is sandbox-option gated.
+
+resource:
+  mana:
+    base_max: 50
+    max_per_mind_level: 5
+    base_regen_per_second: 0.4
+    regen_per_mind_level: 0.05
+    status: draft_numbers
+
+class_skills:
+  - id: Firebolt
+    display_name: Firebolt
+    level_min: 0
+    level_max_default: 10
+    activation:
+      type: active
+      animation_reference: molotov
+      mana_cost_base: 12
+      mana_cost_per_level: -0.3  # slight efficiency with level, floor separately
+      mana_cost_min: 6
+    xp:
+      table: triple_regular_base_skill
+      sources:
+        - damage_dealt_to_zombies_with_firebolt
+      xp_per_damage: 1.2
+    effects_per_level:
+      damage: 0.12  # scales bolt damage
+      radius_or_size: 0.08
+      can_ignite: true
+    ignition:
+      controlled_by_mod_option: FireboltIgnitionMode
+      modes: [all_flammable, all_structures, prebuilt_structures_only, none]
+    risk: high
+    personal_xp_bucket: combat
+    mind_scales_damage: true
+
+  - id: ChainLightning
+    display_name: Chain Lightning
+    level_min: 0
+    level_max_default: 10
+    activation:
+      type: active
+      mana_cost_base: 18
+      mana_cost_per_level: -0.4
+      mana_cost_min: 10
+    xp:
+      table: triple_regular_base_skill
+      sources:
+        - damage_dealt_to_zombies_with_chain_lightning
+      xp_per_damage: 1.0
+    effects:
+      starting_jumps_at_level_1: 2
+      jumps_per_level: 0.3  # draft; floor/ceil in impl
+      damage_per_level: 0.10
+      jump_range_tiles: 4.0
+      jump_range_per_level: 0.15
+    mind_scales_damage: true
+    personal_xp_bucket: combat
+
+  - id: Alarm
+    display_name: Alarm
+    level_min: 0
+    level_max_default: 10
+    activation:
+      type: toggle_or_pulse
+      mana_cost_on_activate: 8
+      duration_game_hours: 2
+      mana_upkeep_per_hour: 0  # draft: front-loaded cost only
+    xp:
+      table: triple_regular_base_skill
+      sources:
+        - zombie_kill_while_learned_or_always: 3
+      note: Pitch was XP based on zombie kills.
+    effects_per_level:
+      detection_range_tiles: 8
+      detection_range_per_level: 1.0
+      ping_sound_player_only: true
+      alerts_zombies: false
+      detects: zombies_in_range_not_visible
+    personal_xp_bucket: survivalist

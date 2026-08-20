@@ -1,0 +1,33 @@
+# Knox System — lore and death/undeath rules
+status: locked
+
+system:
+  role: >
+    In-world force that causes the dead to rise and that surfaces Personal
+    progression (level, stats, classes) to survivors.
+  knox_event: reinterpreted_as_system_driven
+  not: separate_mundane_pathogen_stacked_with_system
+
+while_alive_infection:
+  id: system_infection
+  implementation: vanilla_infection_reskinned
+  display_name: System Infection
+  resilience_modifies: contraction_and_progress
+  immune_at_resilience_level: 20
+
+rising:
+  definition: System turns a dead human into a zombie
+  animals_rise: false
+  children: not_applicable  # PZ has no child NPCs in scope
+  rule: >
+    Any human death causes Rising unless Resilience is at maximum (20).
+    Partial Resilience does not reduce on-death Rising chance (binary gate).
+  blocked_only_at_resilience: 20
+
+player_death:
+  playable_zombie: false
+  run_ends: true  # normal PZ death / reload / MP respawn rules
+  corpse_rises_if_resilience_below_max: true
+  death_message:
+    resilience_below_max: "The System Has Claimed You"
+    resilience_at_max: vanilla_you_died  # UI polish may add spared line later

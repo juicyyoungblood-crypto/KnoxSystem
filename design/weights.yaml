@@ -1,0 +1,79 @@
+# Knox System — Personal XP weights per base skill / bucket
+status: locked_defaults
+numbers_status: draft_numbers
+all_weights_mod_option_overridable: true
+
+# When minting Personal XP from base skill XP:
+#   personal_xp += skill_xp * weight
+# Class skills use half of their analogous bucket (see progression.yaml).
+
+bucket_defaults:
+  combat: 1.0
+  firearm: 1.0
+  agility: 1.0
+  survivalist: 0.5
+  crafting: 0.3
+  passive: 0.25
+  unknown_or_mod_skill: use_category_if_known_else_0.5
+
+# B42-oriented starting map. Unknown skills fall back to bucket_defaults.
+# IDs should be aligned to game perk/skill names at implementation time.
+skill_weights:
+  # Passive
+  Strength: 0.25
+  Fitness: 0.25
+  # Agility
+  Sprinting: 1.0
+  Lightfooted: 1.0
+  Nimble: 1.0
+  Sneaking: 1.0
+  # Combat (melee)
+  Axe: 1.0
+  LongBlunt: 1.0
+  ShortBlunt: 1.0
+  LongBlade: 1.0
+  ShortBlade: 1.0
+  Spear: 1.0
+  Maintenance: 1.0
+  # Firearm
+  Aiming: 1.0
+  Reloading: 1.0
+  # Survivalist / firearm-adjacent / outdoors
+  Fishing: 0.5
+  Trapping: 0.5
+  Foraging: 0.5
+  Farming: 0.5
+  Husbandry: 0.5
+  FirstAid: 0.5
+  # Crafting (B42 expanded set — adjust IDs to live perk names)
+  Carpentry: 0.3
+  Carving: 0.3
+  Cooking: 0.3
+  Electrical: 0.3
+  MetalWelding: 0.3
+  Mechanics: 0.3
+  Tailoring: 0.3
+  Blacksmith: 0.3
+  Pottery: 0.3
+  Glassmaking: 0.3
+  Masonry: 0.3
+  Knapping: 0.3
+  Tracking: 0.5
+
+class_skill_bucket_analogy:
+  # Used with class_skill_weight_factor (0.5) * bucket weight
+  MeleeProficiency: combat
+  Charge: combat
+  Armored: combat
+  Scavenger: survivalist
+  Backstab: combat
+  Dodge: agility
+  RangedProficiency: firearm
+  WoodsLore: survivalist
+  Camouflage: agility
+  Firebolt: combat
+  ChainLightning: combat
+  Alarm: survivalist
+  HardWorker: crafting
+  Craftsman: crafting
+  Enchanting: crafting

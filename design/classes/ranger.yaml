@@ -1,0 +1,69 @@
+# Ranger — designed; stub until after Warrior MVP
+id: ranger
+display_name: Ranger
+mvp: false
+implementation: stub
+status: draft_numbers
+unlock_personal_level: 10
+selectable_in_mvp: false
+
+description: >
+  Guns, woods craft, and staying unseen. Ammo luck and passive stealth pressure.
+
+class_skills:
+  - id: RangedProficiency
+    display_name: Ranged Proficiency
+    level_min: 0
+    level_max_default: 10
+    xp:
+      table: triple_regular_base_skill
+      sources:
+        - use_ranged_weapon_on_zombie
+        - service_ranged_weapon_when_needed
+      notes: >
+        No XP from unload/reload magazine spam. Servicing must be needed
+        (jam, dirty, repair, meaningful maintain action).
+      xp_per_damage: 0.8
+      xp_per_valid_service: 20
+    effects_per_level:
+      ranged_skill_effectiveness: 0.03
+      aiming_related: 0.03
+      reloading_related: 0.02
+      scavenged_ammo_bonus_chance: 0.02
+    personal_xp_bucket: firearm
+
+  - id: WoodsLore
+    display_name: Woods Lore
+    level_min: 0
+    level_max_default: 10
+    xp:
+      table: triple_regular_base_skill
+      sources:
+        - mirror_fraction_of_survival_skill_xp
+        - mirror_fraction_of_first_aid_skill_xp
+      fraction_of_source_xp: 0.5
+    effects_per_level:
+      survival_skills_effectiveness: 0.03
+      first_aid_effectiveness: 0.03
+      lightfooted_effectiveness: 0.02
+      butchering_yield: 0.04
+      foraging_yield: 0.04
+    personal_xp_bucket: survivalist
+
+  - id: Camouflage
+    display_name: Camouflage
+    level_min: 0
+    level_max_default: 10
+    xp:
+      table: triple_regular_base_skill
+      sources:
+        - sneak_like_near_unaware_zombie
+      detection_radius_factor_vs_sneak: 0.5
+      notes: >
+        Gains XP similarly to sneaking, but only while any zombie within
+        half of sneak notice radius has not noticed the player.
+    effects_per_level:
+      sneaking_effectiveness: 0.03
+      lightfooted_effectiveness: 0.03
+      notice_chance_when_not_sneaking: -0.02
+    personal_xp_bucket: agility

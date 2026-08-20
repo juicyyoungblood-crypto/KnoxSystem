@@ -1,0 +1,116 @@
+# Warrior — MVP fully realized class
+id: warrior
+display_name: Warrior
+mvp: true
+implementation: full
+status: draft_numbers
+unlock_personal_level: 10
+
+description: >
+  Frontline survivor. Melee pressure, armored durability, and a stamina-hungry
+  Charge to break packs.
+
+class_skills:
+  - id: MeleeProficiency
+    display_name: Melee Proficiency
+    level_min: 0
+    level_max_default: 10
+    xp:
+      table: triple_regular_base_skill
+      sources:
+        - type: damage_dealt_to_zombies
+          includes: [melee_weapons, bare_hands, foot_stomps]
+          excludes: [shoves, pushes, firearms, throwables]
+          formula: class_xp += damage_amount * xp_per_damage
+          xp_per_damage: 1.0  # draft tunable
+    effects_per_level:
+      # Prefer single effectiveness lever if it already scales speed+damage;
+      # otherwise apply both explicit lines.
+      prefer_base_melee_skill_effectiveness_if_complete: true
+      base_melee_skill_effectiveness: 0.03  # +3% per level draft
+      melee_damage: 0.03
+      melee_attack_speed: 0.02
+      sharpness_degradation_negation: 0.08  # +8%/level → 80% less sharpness loss at L10 (A2 delta refund)
+      sharpness_negation_impl: post_vanilla_delta_refund  # combat + tree/world hooks
+      applies_to_stomps: true
+    personal_xp_bucket: combat
+
+  - id: Charge
+    display_name: Charge
+    level_min: 0
+    level_max_default: 10
+    activation:
+      type: key_press
+      direction: facing
+      cooldown: none
+      default_keybind: G
+      rebindable: true
+    gates:
+      blocked_if_any_endurance_moodle: true
+      requires_endurance_for_full_cost: true
+    stamina_cost:
+      type: percent_max_endurance_from_uses_before_first_moodle
+      # From full stamina, uses before first endurance moodle would appear:
+      uses_before_first_moodle_anchors:
+        1: 2
+        10: 4
+        20: 10  # for raised caps / future
+      interpolation: linear_between_anchors
+      endurance_moodle_start:
+        # Fraction of max endurance remaining when first moodle appears.
+        # Cost per charge ≈ (1 - this) / uses_before_moodle(level)
+        remaining_fraction_tunable: 0.50
+        note: Calibrate to live B42 moodle threshold; exposed as tunable.
+      flavor_reference: Originally pitched as ~20 minutes of sprint drain.
+    motion:
+      base_distance_tiles: 4.0
+      distance_per_level: 0.35
+      push_zombies_aside: true
+    damage:
+      base: 0.8
+      per_level: 0.25
+      # draft abstract damage units — map to zombie HP in impl
+    doors:
+      bash_prebuilt_world_doors: true
+      bash_player_constructed_doors: false
+      min_level_to_bash: 3
+      bash_chance_or_strength_per_level: 0.1  # draft
+    xp:
+      table: triple_regular_base_skill
+      preferred_accounting: per_zombie_damaged  # cheaper than damage-sum
+      fallback: total_damage_sum
+      xp_per_zombie_damaged: 12.0
+    personal_xp_bucket: combat
+
+  - id: Armored
+    display_name: Armored
+    level_min: 0
+    level_max_default: 10
+    xp:
+      table: triple_regular_base_skill
+      sources:
+        - type: passive_worn_protection_score
+          interval_seconds: 10
+          xp_per_score_point: 0.015  # was 0.05; 1/3 rate
+        - type: protection_mitigated_hit
+          xp_base: 8.0
+          scales_with_damage_mitigated: true
+    effects_per_level:
+      worn_protection_bonus: 0.025  # +2.5% protection values — LIVE via Clothing set*Defense (base*mult)
+      # Sync every ~2s + OnClothingUpdated; baselines in item modData.knoxArmoredBase (non-cyclical).
+      # Feeds bite/scratch/bullet rolls (getDefForPart) and Protection tab (reads same getters).
+      protection_mult:
+        per_level: 0.025
+        formula: "1 + level * 0.025"
+        applies_to: [scratchDefense, biteDefense, bulletDefense]
+        cap_per_item: 100
+      # B42 Uncomfortable → stress drip (BodyDamage.UpdateDiscomfort). We do not cap DISCOMFORT.
+      # Every 5s while Uncomfortable ≥ 1: refund 6% × ArmoredLevel of stress gained that window (L10=60%).
+      uncomfortable_stress_relief:
+        interval_seconds: 5
+        refund_percent_per_level: 6
+        max_refund_percent_at_10: 60
+        applies_to: stress
+        requires_uncomfortable_moodle: true
+      counts_any_worn_item_with_defense_stats: true
+    personal_xp_bucket: combat

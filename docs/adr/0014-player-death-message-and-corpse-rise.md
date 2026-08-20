@@ -1,0 +1,3 @@
+# Player death: message change, corpse Rises, no playable zombie
+
+On survivor death with Resilience below 20, the death UI shows “The System Has Claimed You” instead of the vanilla You Died copy. The run still ends under normal PZ death/reload/MP rules; the corpse Rises as a world zombie when Rising applies. Max Resilience blocks Rising (and should keep standard death messaging or a distinct spared line — tune in UI pass). Players never control a zombie in the base design.

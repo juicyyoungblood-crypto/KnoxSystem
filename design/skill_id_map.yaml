@@ -1,0 +1,46 @@
+# Maps design skill names -> observed in-game perk keys (Phase 1 spike)
+# Fill "live_key" from console lines: [KnoxSystem] +N Personal XP (skill:KEY xW)
+status: in_progress
+phase: 1
+
+# weight applied when minting Personal XP
+# unknown keys use Config.BucketWeight.unknown (0.5)
+
+design_to_live:
+  Strength: { live_keys: [Strength], weight: 0.25, bucket: passive }
+  Fitness: { live_keys: [Fitness], weight: 0.25, bucket: passive }
+  Sprinting: { live_keys: [Sprinting, Sprint], weight: 1.0, bucket: agility }
+  Lightfooted: { live_keys: [Lightfooted, Lightfoot], weight: 1.0, bucket: agility }
+  Nimble: { live_keys: [Nimble], weight: 1.0, bucket: agility }
+  Sneaking: { live_keys: [Sneaking, Sneak], weight: 1.0, bucket: agility }
+  Axe: { live_keys: [Axe], weight: 1.0, bucket: combat }
+  LongBlunt: { live_keys: [LongBlunt, Blunt], weight: 1.0, bucket: combat }
+  ShortBlunt: { live_keys: [ShortBlunt, SmallBlunt], weight: 1.0, bucket: combat }
+  LongBlade: { live_keys: [LongBlade], weight: 1.0, bucket: combat }
+  ShortBlade: { live_keys: [ShortBlade, SmallBlade], weight: 1.0, bucket: combat }
+  Spear: { live_keys: [Spear], weight: 1.0, bucket: combat }
+  Maintenance: { live_keys: [Maintenance], weight: 1.0, bucket: combat }
+  Aiming: { live_keys: [Aiming], weight: 1.0, bucket: firearm }
+  Reloading: { live_keys: [Reloading, Reload], weight: 1.0, bucket: firearm }
+  Fishing: { live_keys: [Fishing], weight: 0.5, bucket: survivalist }
+  Trapping: { live_keys: [Trapping], weight: 0.5, bucket: survivalist }
+  Foraging: { live_keys: [Foraging, PlantScavenging], weight: 0.5, bucket: survivalist }
+  Farming: { live_keys: [Farming, Agriculture], weight: 0.5, bucket: survivalist }
+  Husbandry: { live_keys: [Husbandry], weight: 0.5, bucket: survivalist }
+  FirstAid: { live_keys: [FirstAid, Doctor], weight: 0.5, bucket: survivalist }
+  Carpentry: { live_keys: [Carpentry, Woodwork], weight: 0.3, bucket: crafting }
+  Carving: { live_keys: [Carving], weight: 0.3, bucket: crafting }
+  Cooking: { live_keys: [Cooking], weight: 0.3, bucket: crafting }
+  Electrical: { live_keys: [Electrical, Electricity], weight: 0.3, bucket: crafting }
+  MetalWelding: { live_keys: [MetalWelding, MetalWork, Welding], weight: 0.3, bucket: crafting }
+  Mechanics: { live_keys: [Mechanics, Mechanic], weight: 0.3, bucket: crafting }
+  Tailoring: { live_keys: [Tailoring], weight: 0.3, bucket: crafting }
+  Blacksmith: { live_keys: [Blacksmith, Blacksmithing], weight: 0.3, bucket: crafting }
+  Pottery: { live_keys: [Pottery], weight: 0.3, bucket: crafting }
+  Glassmaking: { live_keys: [Glassmaking], weight: 0.3, bucket: crafting }
+  Masonry: { live_keys: [Masonry], weight: 0.3, bucket: crafting }
+  Knapping: { live_keys: [Knapping, FlintKnapping], weight: 0.3, bucket: crafting }
+  Tracking: { live_keys: [Tracking], weight: 0.5, bucket: survivalist }
+
+observed_live_keys: []
+# After playtest, paste unique skill: keys from console here.

@@ -1,0 +1,3 @@
+# Armored hybrid XP; Class Skills mint Personal XP at half bucket weight
+
+Armored gains a small amount of XP from worn protection score and a larger amount when protection mitigates a hit; effects increase worn protection per level and, while Uncomfortable, refund 6%×ArmoredLevel of stress gained each 5s window (stress only; L10=60%). Separately, all Class Skill XP gains mint Personal XP at half the Personal XP Weight of the analogous base-skill bucket (combat-like Class Skills → half of combat weight). This lets class play contribute to Personal Level without full double-dip parity with base skills.

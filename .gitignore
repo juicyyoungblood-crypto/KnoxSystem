@@ -1,0 +1,28 @@
+# Runtime / debug dumps (drop into mod folder while testing)
+**/console.txt
+**/*.log
+**/KnoxSystem_track.log
+mod/Contents/mods/KnoxSystem/Issue*.jpg
+mod/Contents/mods/KnoxSystem/Issue*.png
+mod/Contents/mods/KnoxSystem/Issue*.jpeg
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+*.code-workspace
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Build / temp
+*.tmp
+*.bak
+*~
+.cache/

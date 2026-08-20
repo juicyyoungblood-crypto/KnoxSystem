@@ -1,0 +1,115 @@
+# Crafter — designed; stub until after Warrior MVP
+id: crafter
+display_name: Crafter
+mvp: false
+implementation: stub
+status: draft_numbers
+unlock_personal_level: 10
+selectable_in_mvp: false
+
+description: >
+  Throughput, crafted gear quality, and System Enchanting. Enchanting ships
+  as pitched (no silent nerf).
+
+class_skills:
+  - id: HardWorker
+    display_name: Hard Worker
+    level_min: 0
+    level_max_default: 10
+    xp:
+      table: triple_regular_base_skill
+      sources:
+        - per_craft_action
+      xp_per_craft: 6
+    effects_per_level:
+      transfer_speed_containers: 0.04
+      crafting_speed: 0.04
+      disassemble_speed: 0.04
+      building_speed: 0.04
+    personal_xp_bucket: crafting
+
+  - id: Craftsman
+    display_name: Craftsman
+    level_min: 0
+    level_max_default: 10
+    xp:
+      table: triple_regular_base_skill
+      sources:
+        - xp_mirror_from_skills
+      skills:
+        - Carpentry
+        - Blacksmith
+        - Glassmaking
+        - Knapping
+        - Masonry
+        - Pottery
+        - Tailoring
+      fraction_of_source_xp: 0.4
+    effects_per_level:
+      maintenance_effectiveness: 0.03
+      crafted_item_protection_bonus: 0.025
+      crafted_item_damage_bonus: 0.025
+      crafted_item_durability_bonus: 0.03
+      note: Bonuses apply by crafted item type where relevant.
+    personal_xp_bucket: crafting
+
+  - id: Enchanting
+    display_name: Enchanting
+    level_min: 0
+    level_max_default: 10
+    xp:
+      table: triple_regular_base_skill
+      sources:
+        - successful_enchant_use: 1.0
+        - unsuccessful_enchant_use: 0.25
+    rules:
+      imbues_item_with_passive_trait: true
+      trait_cost_uses_enchanting_level_gate: true
+      level_0_access: new_minor_traits_only
+    traits:
+      # cost = unlock level requirement / spend cost per pitch:
+      # each level unlocks traits that cost that much; level 0 → minor set
+      - id: MinorDamageIncrease
+        cost: 0
+        unlock_level: 0
+        effect: { damage: 0.03 }
+      - id: MinorSpeedIncrease
+        cost: 0
+        unlock_level: 0
+        effect: { attack_or_move_speed: 0.03 }
+      - id: MinorDurabilityIncrease
+        cost: 0
+        unlock_level: 0
+        effect: { durability: 0.05 }
+      - id: MinorProtectionIncrease
+        cost: 0
+        unlock_level: 0
+        effect: { protection: 0.03 }
+      - id: SelfCleaning
+        cost: 0
+        unlock_level: 0
+        effect: { blood_dirt_decay_rate: 0.5 }
+      # Draft higher-tier traits (tunable; expand in balance)
+      - id: ModerateDamageIncrease
+        cost: 3
+        unlock_level: 3
+        effect: { damage: 0.07 }
+      - id: ModerateProtectionIncrease
+        cost: 3
+        unlock_level: 3
+        effect: { protection: 0.07 }
+      - id: MajorDamageIncrease
+        cost: 6
+        unlock_level: 6
+        effect: { damage: 0.12 }
+      - id: MajorDurabilityIncrease
+        cost: 6
+        unlock_level: 6
+        effect: { durability: 0.15 }
+      - id: GreaterWard
+        cost: 10
+        unlock_level: 10
+        effect: { protection: 0.12, durability: 0.10 }
+    risk: medium
+    personal_xp_bucket: crafting
+    pitch_fidelity: as_specified_no_silent_nerf

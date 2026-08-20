@@ -1,0 +1,122 @@
+# Knox System — UI specification
+status: locked_structure
+numbers_status: draft_numbers
+
+theme:
+  id: system_litrpg
+  scope:
+    character_tabs: [info, skills, health, protection, temperature, system]
+    inventory: true
+    crafting: true
+    main_hud_moodles_hotbar: false  # out of MVP theme scope
+  chrome:
+    panel_background: system_blue  # draft #0a1628
+    header_background: system_blue_mid  # draft #1a3a5c
+    primary_text: white
+    accent: muted_cyan  # bars, focus
+  scales:
+    protection:
+      min_color: dark_grey  # 0
+      max_color: white  # 100
+      interpolation: linear
+    temperature:
+      cold: cool_blue_grey
+      hot: white
+      note: Stay on-theme; avoid vanilla orange/red heat if possible
+    health_wound_map:
+      style: desaturated_red_grey_severity
+      reason: Injury readability under blue chrome
+  draft_hex:
+    panel: "#0A1628"
+    header: "#1A3A5C"
+    text: "#FFFFFF"
+    accent: "#5CB8FF"
+    grey_0: "#2A2A2A"
+    grey_100: "#FFFFFF"
+
+tabs:
+  system:
+    id: system
+    display_name: System
+    layout:
+      - region: header_name
+        content: survivor_display_name
+        align: top_center
+      - region: two_columns
+        left:
+          - personal_stat: Power
+          - personal_stat: Endurance
+          - personal_stat: Mind
+          - personal_stat: Resilience
+        right:
+          - personal_level
+          - exp_to_next
+          - world_rank  # UI label: World Rank (not "World Level" — avoids clash with Personal Level)
+          - unspent_sp
+      - region: class_list
+        entries: [Warrior, Thief, Ranger, Mage, Crafter]
+        mvp_selectable: [Warrior]
+        others: coming_later_greyed
+      - region: class_skills
+        align: left
+        shows: skills_for_selected_or_current_class
+        warrior_example: [Melee Proficiency, Charge, Armored]
+    class_pick_modal:
+      on_personal_level: 10
+      behavior: modal_on_level_up
+      warrior_selectable: true
+      others_greyed_label: Coming later
+
+  skills:
+    sp_controls:
+      plus_beside_skill_name: true
+      format_example: "Axe +"
+      plus_visible_only_when_unspent_sp_gt_0_and_can_raise: true
+      minus_visible_when_line_has_pending_increase: true
+      confirm_button: bottom_of_tab
+      model: pending_cart
+
+sp_cart:
+  applies_to: [skills_tab_base_skills, system_tab_personal_stats]
+  plus: stage_one_level_increase_if_affordable_in_cart
+  minus: remove_one_pending_increase
+  confirm: commit_all_pending_on_this_tab
+  carts: independent_per_tab
+  discard_policy: persist_until_confirm_or_death_or_logout
+  show_cost_in_cart: true
+  show_remaining_sp_after_confirm_preview: true
+
+charge:
+  default_keybind: G
+  rebindable: true
+  blocked_feedback:
+    type: floating_text
+    text: heavy breathing
+    not: silent_fail
+
+world_special_tells:
+  living:
+    eye_glow_elites_only: true
+    glow_scale_with_strength: true
+    floating_nameplates: false
+    non_elite_glow: false
+  corpse:
+    show_name: true
+    format: tier_name_only  # e.g. Marked Zombie; no Elite prefix string
+    examples: ["Untouched Zombie", "Stirred Zombie", "Marked Zombie", "Claimed Zombie", "Apex Zombie"]
+
+mid_save_enable:
+  preferred: new_game
+  if_enabled_mid_save: best_effort_init
+  best_effort:
+    personal_level: 0
+    personal_xp: 0
+    skill_points: 0
+    class: null
+    start_earning_from: enable_moment
+    no_history_backfill: true
+
+inventory_crafting_theme:
+  depth: same_blue_chrome_as_character_sheet
+  item_icons_unchanged: true
+  rarity_frame_restyle: false

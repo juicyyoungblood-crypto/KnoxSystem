@@ -1,0 +1,69 @@
+# Knox System — ModData schema
+status: locked_structure
+schema_version: 1
+
+# All keys under a single mod namespace on IsoPlayer / IsoZombie ModData.
+namespace: KnoxSystem
+
+player:
+  schema_version: 1
+  # Progression
+  personal_level: { type: int, default: 0, min: 0, max: 100 }
+  personal_xp: { type: float, default: 0 }
+  skill_points_unspent: { type: int, default: 0, min: 0 }
+  # Personal stats 0-20
+  stat_power: { type: int, default: 0, min: 0, max: 20 }
+  stat_strength: { type: int, default: 0, min: 0, max: 20, note: "legacy mirror of stat_power" }
+  stat_endurance: { type: int, default: 0, min: 0, max: 20 }
+  stat_mind: { type: int, default: 0, min: 0, max: 20 }
+  stat_resilience: { type: int, default: 0, min: 0, max: 20 }
+  # Class
+  class_id: { type: string_or_null, default: null }  # warrior | thief | ...
+  class_locked: { type: bool, default: false }  # true after permanent pick
+  # Class skills: map skill_id -> { level, xp }
+  class_skills:
+    type: map
+    value:
+      level: { type: int, default: 0 }
+      xp: { type: float, default: 0 }
+  # Resources
+  mana_current: { type: float, default: 0 }
+  mana_max_cache: { type: float, default: 0 }  # optional cache
+  # UI carts (may be client-only; if persisted, clear on death)
+  sp_cart_skills:
+    type: map  # base_skill_id -> pending_levels_to_add
+    default: {}
+  sp_cart_stats:
+    type: map  # stat_id -> pending_levels_to_add
+    default: {}
+  # Meta
+  initialized: { type: bool, default: false }
+  init_source: { type: enum, values: [new_game, mid_save_best_effort], default: new_game }
+
+zombie:
+  schema_version: 1
+  system_tier: { type: int, default: 0, min: 0, max: 4 }  # 0 Untouched .. 4 Apex
+  is_elite: { type: bool, default: false }
+  stamped: { type: bool, default: false }
+  stamped_world_age_hours: { type: float, default: 0 }
+  stamped_reference_pl: { type: int, default: 0 }  # PL used at roll (debug/MP)
+  tier_display_name: { type: string, default: "Untouched Zombie" }
+
+# Mid-save best-effort (design/ui.yaml)
+mid_save_best_effort:
+  personal_level: 0
+  personal_xp: 0
+  skill_points_unspent: 0
+  class_id: null
+  class_locked: false
+  class_skills: {}
+  stats_all: 0
+  clear_carts: true
+  initialized: true
+  init_source: mid_save_best_effort
+
+migration:
+  policy: >
+    On load, if missing namespace or schema_version < current, run migrate
+    upward. Unknown future keys ignored. Never delete player progress
+    silently without version bump notes.
