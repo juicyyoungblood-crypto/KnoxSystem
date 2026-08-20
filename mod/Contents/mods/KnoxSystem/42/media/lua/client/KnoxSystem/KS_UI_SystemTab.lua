@@ -960,20 +960,20 @@ local function tryPatchCharacterInfoWindow()
     pcall(function()
         require "ISUI/ISCharacterInfoWindow"
         if not ISCharacterInfoWindow then return end
-        -- Bump forces re-apply after 3.19 breakage (raw wrap killed tab/chrome)
-        if ISCharacterInfoWindow._knoxPatchVer == "3.20" then return end
-        ISCharacterInfoWindow._knoxPatchVer = "3.20"
+        -- Allow re-patch after version bumps
+        if ISCharacterInfoWindow._knoxPatchVer == "3.19" then return end
+        ISCharacterInfoWindow._knoxPatchVer = "3.19"
         ISCharacterInfoWindow._knoxSystemTabPatched = true
 
         local oldCreate = ISCharacterInfoWindow.createChildren
         ISCharacterInfoWindow.createChildren = function(self, ...)
-            if oldCreate then oldCreate(self, ...) end
+            oldCreate(self, ...)
             pcall(function()
                 ensureSystemTab(self)
                 softBlueWindow(self)
                 local panel = self.panel
-                if panel and panel.activateView and not panel._knoxAct320 then
-                    panel._knoxAct320 = true
+                if panel and panel.activateView and not panel._knoxAct317 then
+                    panel._knoxAct317 = true
                     local oldAct = panel.activateView
                     panel.activateView = function(pself, name)
                         local result = oldAct(pself, name)
@@ -991,50 +991,74 @@ local function tryPatchCharacterInfoWindow()
             end
         end
 
-        -- Plain update — no withRaw wrapper on the whole window (that broke System tab)
         local oldUpdate = ISCharacterInfoWindow.update
         if oldUpdate then
             ISCharacterInfoWindow.update = function(self, ...)
-                oldUpdate(self, ...)
-                pcall(function()
+                local args = { ... }
+                local n = select("#", ...)
+                local function body()
+                    oldUpdate(self, unpack(args, 1, n))
                     if self.knoxSystemView then
                         local p = getSpecificPlayer and getSpecificPlayer(self.playerNum or 0) or getPlayer()
                         self.knoxSystemView:setCharacter(p)
-                        local v = self.knoxSystemView
-                        local visible = v and v.getIsVisible and v:getIsVisible()
-                        if visible then
-                            self._knoxFitTick = (self._knoxFitTick or 0) + 1
-                            if self._knoxFitTick >= 30 then
-                                self._knoxFitTick = 0
-                                fitWindowToSystem(self)
+                        -- Keep System-sized while that tab is visible (vanilla shrinks it otherwise)
+                        pcall(function()
+                            local v = self.knoxSystemView
+                            local visible = v and v.getIsVisible and v:getIsVisible()
+                            if visible then
+                                self._knoxFitTick = (self._knoxFitTick or 0) + 1
+                                if self._knoxFitTick >= 30 then
+                                    self._knoxFitTick = 0
+                                    fitWindowToSystem(self)
+                                end
                             end
-                        end
-                    elseif (self._knoxRetry or 0) < 30 then
+                        end)
+                    elseif self._knoxRetry and self._knoxRetry < 25 then
                         self._knoxRetry = (self._knoxRetry or 0) + 1
-                        if self._knoxRetry == 2 or self._knoxRetry == 8 or self._knoxRetry == 18 then
+                        if self._knoxRetry == 8 or self._knoxRetry == 18 then
                             ensureSystemTab(self)
-                            softBlueWindow(self)
                         end
                     end
-                    softBlueWindow(self)
-                end)
+                end
+                -- Skills tab Strength pips must use real perk level (not Power-boosted)
+                if KnoxSystem.Power and KnoxSystem.Power.withRawPerkLevel then
+                    return KnoxSystem.Power.withRawPerkLevel(body)
+                end
+                return body()
             end
         end
 
         local oldPre = ISCharacterInfoWindow.prerender
-        ISCharacterInfoWindow.prerender = function(self, ...)
-            softBlueWindow(self)
-            if oldPre then oldPre(self, ...) end
+        if oldPre then
+            ISCharacterInfoWindow.prerender = function(self, ...)
+                local args = { ... }
+                local n = select("#", ...)
+                local function body()
+                    softBlueWindow(self)
+                    if oldPre then oldPre(self, unpack(args, 1, n)) end
+                end
+                if KnoxSystem.Power and KnoxSystem.Power.withRawPerkLevel then
+                    return KnoxSystem.Power.withRawPerkLevel(body)
+                end
+                return body()
+            end
         end
 
-        -- Skills tab only: wrap skill progress bars when panel exists (raw Strength pips)
-        pcall(function()
-            if KnoxSystem.Power and KnoxSystem.Power.hookUiRawDisplay then
-                KnoxSystem.Power.hookUiRawDisplay()
+        local oldRender = ISCharacterInfoWindow.render
+        if oldRender then
+            ISCharacterInfoWindow.render = function(self, ...)
+                local args = { ... }
+                local n = select("#", ...)
+                if KnoxSystem.Power and KnoxSystem.Power.withRawPerkLevel then
+                    return KnoxSystem.Power.withRawPerkLevel(function()
+                        return oldRender(self, unpack(args, 1, n))
+                    end)
+                end
+                return oldRender(self, unpack(args, 1, n))
             end
-        end)
+        end
 
-        print("[KnoxSystem] Character info patch 3.20 (System tab + blue chrome restored; skill bars raw Strength)")
+        print("[KnoxSystem] Character info patch 3.19 (raw Strength on Skills UI + System tab)")
     end)
 end
 

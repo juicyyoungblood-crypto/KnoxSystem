@@ -24,8 +24,7 @@ local channels = {
     strength = { enabled = false, desc = "DEPRECATED alias — use power" },
     power = { enabled = true, desc = "Power=hidden +N Strength (getPerkLevel); real vs effective logs" },
     stamina = { enabled = true, desc = "Personal Endurance/Stamina vs Fitness + endurance bar + drain delta" },
-    zombie = { enabled = false, desc = "OFF: zombie stamp/observe/elite loot (suppressed)" },
-    strength_apply = { enabled = true, desc = "Strength applications: fence/vault, muscle strain, shove, door/thump; real vs effective" },
+    zombie = { enabled = false, desc = "OFF: zombie stamp/observe/elite loot (was spawn tier verify)" },
     loot = { enabled = true, desc = "Spawned/container loot rarity check (Analyze colors)" },
     resilience = { enabled = true, desc = "Personal Resilience: post-infection resist rolls / clear System Infection" },
 }
