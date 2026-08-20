@@ -31,6 +31,9 @@ Mod design source of truth for **Knox System** (Project Zomboid B42 System-apoca
 
 Repo root: `/opt/data/workspace/pz-system-apocalypse` (branch `main`).
 
+**Private GitHub:** https://github.com/juicyyoungblood-crypto/KnoxSystem  
+(invite collaborators or share link only with people who have access — not public)
+
 ```bash
 cd /opt/data/workspace/pz-system-apocalypse
 git log --oneline
