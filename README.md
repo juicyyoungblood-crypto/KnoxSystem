@@ -27,9 +27,22 @@ Mod design source of truth for **Knox System** (Project Zomboid B42 System-apoca
 - World scaling structure locked (draft numbers)
 - LitRPG UI theme (character sheet + inventory/crafting)
 
-## Hermes skill
+## Git
 
-Use skill **`knox-system`**. It points at this project and standardizes plan/build/review against these files.
+Repo root: `/opt/data/workspace/pz-system-apocalypse` (branch `main`).
+
+```bash
+cd /opt/data/workspace/pz-system-apocalypse
+git log --oneline
+git tag
+git show v0.5.125:mod/Contents/mods/KnoxSystem/42/mod.info
+git diff v0.5.125 -- mod/
+git checkout v0.5.125 -- path/to/file.lua   # restore one file from a tag
+```
+
+Tags: `v0.5.125` = initial snapshot (current). After meaningful ship points, tag `vX.Y.Z` to match `mod.info` / `KS_ModData.VERSION`.
+
+Ignored: `console.txt`, `*.log`, `Issue*.jpg` dumps in the mod folder.
 
 ## Status legend
 
