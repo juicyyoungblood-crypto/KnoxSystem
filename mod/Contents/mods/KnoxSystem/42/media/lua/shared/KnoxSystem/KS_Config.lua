@@ -88,7 +88,7 @@ KnoxSystem.Config.SkillWeight = {
 }
 
 KnoxSystem.Config.ClassSkillWeightFactor = 0.5
-KnoxSystem.Config.DebugXP = true -- Phase 1: log gains; set false later if noisy
+KnoxSystem.Config.DebugXP = false -- off: was spamming +Personal XP / PL lines every skill tick
 
 -- Extensible verification log (KS_TrackLog). Toggle master or per-channel.
 -- Console: [KnoxTrack/<channel>] …  File: Zomboid/Lua/KnoxSystem_track.log (typical)
@@ -105,10 +105,12 @@ KnoxSystem.Config.TrackLog = {
         damage = true,
         stress = true,
         protection = true,
-        strength = true,
+        strength = false, -- deprecated
+        power = true,
         stamina = true,
-        zombie = true,
+        zombie = false, -- hard OFF (was true and overrode TrackLog default)
         loot = true,
+        resilience = true,
     },
 }
 
