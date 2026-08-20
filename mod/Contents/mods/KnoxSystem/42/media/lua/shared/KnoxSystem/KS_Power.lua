@@ -163,7 +163,9 @@ function KnoxSystem.Power.onMeleeHit(player, target, rawDamage, weapon)
     end
 end
 
---- Carry capacity: store baseline once, then maxWeight = baseline * powerMult.
+--- Carry capacity: vanilla natural maxWeight × powerMult via MaxWeightBonus (B42).
+--- Do NOT setMaxWeight alone — vanilla Strength recalculates and overwrites it.
+--- Issue1 (0.5.125): setMaxWeight → log said 22, UI stayed 20 (Str10). Baseline cur/mult was circular.
 local function readMaxWeight(player)
     local w = nil
     pcall(function()
@@ -182,18 +184,34 @@ local function readMaxWeight(player)
     return w
 end
 
-local function writeMaxWeight(player, w)
+local function readMaxWeightBonus(player)
+    local b = nil
+    pcall(function()
+        if type(player.getMaxWeightBonus) == "function" then
+            b = tonumber(player:getMaxWeightBonus())
+        end
+    end)
+    return b
+end
+
+local function writeMaxWeightBonus(player, bonus)
+    local ok = false
+    pcall(function()
+        if type(player.setMaxWeightBonus) == "function" then
+            player:setMaxWeightBonus(bonus)
+            ok = true
+        end
+    end)
+    return ok
+end
+
+local function writeMaxWeightAbsolute(player, w)
     if not w or w <= 0 then return false end
     local ok = false
     pcall(function()
         if type(player.setMaxWeight) == "function" then
             player:setMaxWeight(w)
             ok = true
-        end
-    end)
-    pcall(function()
-        if type(player.setMaxWeightBonus) == "function" then
-            -- Some builds: bonus additive on top of base
         end
     end)
     pcall(function()
@@ -206,6 +224,53 @@ local function writeMaxWeight(player, w)
     return ok
 end
 
+local function vanillaStrengthPerk(player)
+    local lvl = nil
+    pcall(function()
+        if not player or type(player.getPerkLevel) ~= "function" then return end
+        local p = nil
+        if Perks then p = Perks.Strength or Perks.STRENGTH end
+        if p == nil and PerkFactory and PerkFactory.Perks then
+            p = PerkFactory.Perks.Strength
+        end
+        if p ~= nil then lvl = tonumber(player:getPerkLevel(p)) end
+    end)
+    return lvl
+end
+
+--- Best-effort vanilla capacity with our previous Power bonus stripped.
+local function estimateNaturalMaxWeight(player, data)
+    local total = readMaxWeight(player)
+    local bonus = readMaxWeightBonus(player)
+    local our = tonumber(data._knoxPowerWeightBonus) or 0
+
+    -- Path 1: MaxWeightBonus API — natural = total - our share of bonus
+    if total and bonus ~= nil and our > 0 then
+        local natural = total - our
+        if natural >= 1 then return natural, "total_minus_our_bonus" end
+    end
+    if total and bonus ~= nil and (our == 0 or our < 0.01) then
+        -- No recorded our-bonus: treat full bonus as foreign, natural = total - all bonus
+        local natural = total - (bonus or 0)
+        if natural >= 1 then return natural, "total_minus_all_bonus" end
+    end
+
+    -- Path 2: Strength fallback (Issue1: Str10 → UI 20 → ~2 per Strength level)
+    local str = vanillaStrengthPerk(player)
+    if str ~= nil then
+        -- B42 observed default: 2 * Strength matches Str10→20; keep floor 8
+        local byStr = math.max(8, 2 * str)
+        if total and total > byStr + 0.5 and our == 0 then
+            -- Prefer live total if it looks like pure vanilla (no our bonus yet)
+            return total, "live_total_as_vanilla"
+        end
+        return byStr, "strength_formula_2x"
+    end
+
+    if total and total > 0 then return total, "live_total_fallback" end
+    return 8, "default8"
+end
+
 function KnoxSystem.Power.syncCarry(player, reason)
     if not isIsoPlayer(player) then return end
     local data = KnoxSystem.getPlayerData(player)
@@ -213,52 +278,87 @@ function KnoxSystem.Power.syncCarry(player, reason)
 
     local lv = powerLevel(player)
     local mult = KnoxSystem.Power.mult(player)
-    local cur = readMaxWeight(player)
-    if not cur or cur <= 0 then return end
 
-    -- Baseline: capacity as if Power were 0. Recompute each time from current/mult
-    -- to tolerate vanilla Strength changes (vanilla updates max weight).
-    local baseline = cur / mult
-    if data._powerCarryBaseline and data._powerCarryBaseline > 0 then
-        -- If vanilla Strength changed max a lot, refresh baseline when closer without our mult
-        local expected = data._powerCarryBaseline * mult
-        if math.abs(cur - expected) > 2.5 then
-            -- external change — re-baseline from current assuming current mult already applied or not
-            if mult > 1.001 and cur > data._powerCarryBaseline then
-                baseline = cur / mult
-            else
-                baseline = cur
-            end
-            data._powerCarryBaseline = baseline
-        else
-            baseline = data._powerCarryBaseline
+    local natural, natSrc = estimateNaturalMaxWeight(player, data)
+    if not natural or natural < 1 then natural = 8 end
+
+    local beforeTotal = readMaxWeight(player)
+    local beforeBonus = readMaxWeightBonus(player)
+    local method = "none"
+    local targetTotal = natural * mult
+    local ourBonus = 0
+    local wrote = false
+
+    if lv < 1 or mult <= 1.0001 then
+        -- Clear our bonus
+        if (data._knoxPowerWeightBonus or 0) > 0 and writeMaxWeightBonus(player, math.max(0, (beforeBonus or 0) - (data._knoxPowerWeightBonus or 0))) then
+            method = "clear_bonus"
+            wrote = true
         end
+        data._knoxPowerWeightBonus = 0
+        data._powerLiveCarry = false
     else
-        data._powerCarryBaseline = baseline
+        ourBonus = natural * (mult - 1)
+        if ourBonus < 0 then ourBonus = 0 end
+
+        -- Prefer additive bonus (survives vanilla Strength recalc of base max weight)
+        local otherBonus = 0
+        if beforeBonus ~= nil then
+            otherBonus = math.max(0, (beforeBonus or 0) - (tonumber(data._knoxPowerWeightBonus) or 0))
+        end
+        local wantBonus = otherBonus + ourBonus
+
+        if writeMaxWeightBonus(player, wantBonus) then
+            data._knoxPowerWeightBonus = ourBonus
+            method = "maxWeightBonus"
+            wrote = true
+            -- Some builds need a nudge on absolute max too
+            local after = readMaxWeight(player)
+            if after and natural and after < targetTotal - 0.5 then
+                if writeMaxWeightAbsolute(player, targetTotal) then
+                    method = "bonus_plus_setMaxWeight"
+                end
+            end
+        else
+            -- Fallback: force absolute every tick (vanilla may still fight us)
+            if writeMaxWeightAbsolute(player, targetTotal) then
+                data._knoxPowerWeightBonus = 0 -- not using bonus path
+                method = "setMaxWeight_abs"
+                wrote = true
+            end
+        end
+        data._powerLiveCarry = wrote
     end
 
-    local target = baseline * mult
-    if target < 1 then target = 1 end
-    -- Avoid thrash
-    if math.abs(cur - target) < 0.05 then
-        data._powerLiveCarry = true
-        return
-    end
-    writeMaxWeight(player, target)
-    data._powerLiveCarry = true
+    local afterTotal = readMaxWeight(player)
+    local afterBonus = readMaxWeightBonus(player)
+    data._powerCarryBaseline = natural
 
     local id = 0
     pcall(function() id = player:getPlayerNum() or 0 end)
     local t = nowMs()
     local last = lastCarryLog[id] or 0
-    if KnoxSystem.Track and KnoxSystem.Track.isChannelOn("power") and (t <= 0 or last <= 0 or t - last > 8000) then
+    local mismatch = afterTotal and targetTotal and math.abs(afterTotal - targetTotal) > 0.75
+    -- Log periodically, or immediately if UI still wrong
+    if KnoxSystem.Track and KnoxSystem.Track.isChannelOn("power")
+        and (mismatch or t <= 0 or last <= 0 or t - last > 5000) then
         lastCarryLog[id] = t
         KnoxSystem.Track.log("power", "carry_live", {
             reason = tostring(reason or "tick"),
             powerLv = lv,
             powerMult = mult,
-            baseline = baseline,
-            maxWeight = target,
+            natural = natural,
+            naturalSrc = natSrc,
+            ourBonus = ourBonus,
+            targetTotal = targetTotal,
+            beforeTotal = beforeTotal or -1,
+            beforeBonus = beforeBonus or -1,
+            afterTotal = afterTotal or -1,
+            afterBonus = afterBonus or -1,
+            method = method,
+            wrote = wrote and 1 or 0,
+            mismatch = mismatch and 1 or 0,
+            strPerk = vanillaStrengthPerk(player) or -1,
             livePowerApplied = 1,
         })
     end
@@ -274,12 +374,7 @@ function KnoxSystem.Power.onPlayerUpdate(player)
     data._powerLiveApplied = (powerLevel(player) > 0)
     data._strLiveApplied = data._powerLiveApplied
 
-    local id = 0
-    pcall(function() id = player:getPlayerNum() or 0 end)
-    local t = nowMs()
-    local last = lastCarryApply[id] or 0
-    if t > 0 and last > 0 and (t - last) < CARRY_APPLY_MS then return end
-    lastCarryApply[id] = t
+    -- Apply carry every update so vanilla Strength recalc cannot stick at base (Issue1)
     KnoxSystem.Power.syncCarry(player, "update")
 end
 
@@ -374,4 +469,4 @@ function KnoxSystem.Power.hookSmashWindow()
     end)
 end
 
-print("[KnoxSystem] KS_Power loaded (LIVE: melee dmg, knockdown, carry, window smash)")
+print("[KnoxSystem] KS_Power loaded (LIVE: melee/knockdown/carry-bonus/smash; carry fix Issue1)")
