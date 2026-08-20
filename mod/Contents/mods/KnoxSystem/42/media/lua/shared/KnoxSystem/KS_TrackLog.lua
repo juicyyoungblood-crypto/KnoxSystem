@@ -25,6 +25,7 @@ local channels = {
     power = { enabled = true, desc = "Power=hidden +N Strength (getPerkLevel); real vs effective logs" },
     stamina = { enabled = true, desc = "Personal Endurance/Stamina vs Fitness + endurance bar + drain delta" },
     zombie = { enabled = false, desc = "OFF: zombie stamp/observe/elite loot" },
+    strength_apply = { enabled = true, desc = "Strength on actions: melee/shove/fence/door/strain; real vs effective" },
     loot = { enabled = true, desc = "Spawned/container loot rarity check (Analyze colors)" },
     resilience = { enabled = true, desc = "Personal Resilience: post-infection resist rolls / clear System Infection" },
 }

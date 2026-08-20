@@ -107,6 +107,7 @@ KnoxSystem.Config.TrackLog = {
         protection = true,
         strength = false, -- deprecated
         power = true,
+        strength_apply = true, -- fence/melee/door/strain Strength probes
         stamina = true,
         zombie = false, -- hard OFF (was true and overrode TrackLog default)
         loot = true,
