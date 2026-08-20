@@ -72,12 +72,15 @@ local function isStrengthPerk(perk)
 end
 
 --- Run fn with Strength getPerkLevel returning the REAL perk level (no Power).
+--- Never rethrow — UI must stay alive.
 function KnoxSystem.Power.withRawPerkLevel(fn)
+    if type(fn) ~= "function" then return nil end
     _rawDepth = _rawDepth + 1
     local ok, a, b, c, d = pcall(fn)
     _rawDepth = _rawDepth - 1
     if not ok then
-        error(a)
+        print("[KnoxSystem] withRawPerkLevel error: " .. tostring(a))
+        return nil
     end
     return a, b, c, d
 end
@@ -227,23 +230,21 @@ function KnoxSystem.Power.hookSmashWindow() end
 function KnoxSystem.Power.syncCarry(...) end
 function KnoxSystem.Power.bonusDamage(...) return 0 end
 
---- Skills / character UI must show REAL Strength pips (not real+Power).
---- Issue1: Strength row drew 13 boxes when Power=10 and real Strength≈3.
+--- Skills pips: show REAL Strength. Do NOT wrap ISCharacterInfoWindow shell
+--- (that killed System tab + blue chrome when combined with other UI patches).
 local function wrapUiFn(tbl, methodName)
     if type(tbl) ~= "table" then return false end
     local key = "_knoxPowerRaw_" .. tostring(methodName)
     if tbl[key] then return true end
     local old = tbl[methodName]
     if type(old) ~= "function" then return false end
-    tbl[methodName] = function(self, ...)
-        local args = { ... }
-        local n = select("#", ...)
+    tbl[methodName] = function(self, a1, a2, a3, a4, a5, a6, a7, a8)
         if KnoxSystem.Power and KnoxSystem.Power.withRawPerkLevel then
             return KnoxSystem.Power.withRawPerkLevel(function()
-                return old(self, unpack(args, 1, n))
+                return old(self, a1, a2, a3, a4, a5, a6, a7, a8)
             end)
         end
-        return old(self, unpack(args, 1, n))
+        return old(self, a1, a2, a3, a4, a5, a6, a7, a8)
     end
     tbl[key] = true
     return true
@@ -251,10 +252,8 @@ end
 
 local function wrapUiType(globalName, methods)
     pcall(function()
-        -- try require common paths
         pcall(function() require("ISUI/" .. globalName) end)
         pcall(function() require("ISUI/PlayerData/" .. globalName) end)
-        pcall(function() require(globalName) end)
         local tbl = _G[globalName]
         if type(tbl) ~= "table" then return end
         for _, m in ipairs(methods) do
@@ -264,26 +263,16 @@ local function wrapUiType(globalName, methods)
 end
 
 function KnoxSystem.Power.hookUiRawDisplay()
-    local methods = { "prerender", "render", "update", "renderLevel", "drawLevel", "onMouseMove" }
-    -- Character sheet + Skills tab (B41/B42 names vary)
+    local methods = { "prerender", "render", "update", "renderLevel", "drawLevel" }
+    -- Skill widgets only — never the character window shell
     for _, name in ipairs({
-        "ISCharacterInfoWindow",
+        "ISSkillProgressBar",
         "ISCharacterScreen",
         "ISCharacterInfo",
-        "ISSkillProgressBar",
-        "ISCharacterProtection",
-        "CharacterScreen",
-        "ISHealthPanel",
     }) do
         wrapUiType(name, methods)
     end
-    -- Also wrap already-patched character window methods if present
-    pcall(function()
-        if ISCharacterInfoWindow then
-            for _, m in ipairs(methods) do wrapUiFn(ISCharacterInfoWindow, m) end
-        end
-    end)
     return true
 end
 
-print("[KnoxSystem] KS_Power loaded (hidden Strength+Power via getPerkLevel; max10 @ 2SP; Skills UI shows real Strength)")
+print("[KnoxSystem] KS_Power loaded (hidden Strength+Power; skill pips raw; no window-shell wrap)")
