@@ -961,8 +961,8 @@ local function tryPatchCharacterInfoWindow()
         require "ISUI/ISCharacterInfoWindow"
         if not ISCharacterInfoWindow then return end
         -- Allow re-patch after version bumps
-        if ISCharacterInfoWindow._knoxPatchVer == "3.18" then return end
-        ISCharacterInfoWindow._knoxPatchVer = "3.18"
+        if ISCharacterInfoWindow._knoxPatchVer == "3.19" then return end
+        ISCharacterInfoWindow._knoxPatchVer = "3.19"
         ISCharacterInfoWindow._knoxSystemTabPatched = true
 
         local oldCreate = ISCharacterInfoWindow.createChildren
@@ -994,42 +994,71 @@ local function tryPatchCharacterInfoWindow()
         local oldUpdate = ISCharacterInfoWindow.update
         if oldUpdate then
             ISCharacterInfoWindow.update = function(self, ...)
-                oldUpdate(self, ...)
-                if self.knoxSystemView then
-                    local p = getSpecificPlayer and getSpecificPlayer(self.playerNum or 0) or getPlayer()
-                    self.knoxSystemView:setCharacter(p)
-                    -- Keep System-sized while that tab is visible (vanilla shrinks it otherwise)
-                    pcall(function()
-                        local v = self.knoxSystemView
-                        local visible = v and v.getIsVisible and v:getIsVisible()
-                        -- Re-fit while System visible, but slowly; width is fixed so no fullscreen bloom
-                        if visible then
-                            self._knoxFitTick = (self._knoxFitTick or 0) + 1
-                            if self._knoxFitTick >= 30 then
-                                self._knoxFitTick = 0
-                                fitWindowToSystem(self)
+                local args = { ... }
+                local n = select("#", ...)
+                local function body()
+                    oldUpdate(self, unpack(args, 1, n))
+                    if self.knoxSystemView then
+                        local p = getSpecificPlayer and getSpecificPlayer(self.playerNum or 0) or getPlayer()
+                        self.knoxSystemView:setCharacter(p)
+                        -- Keep System-sized while that tab is visible (vanilla shrinks it otherwise)
+                        pcall(function()
+                            local v = self.knoxSystemView
+                            local visible = v and v.getIsVisible and v:getIsVisible()
+                            if visible then
+                                self._knoxFitTick = (self._knoxFitTick or 0) + 1
+                                if self._knoxFitTick >= 30 then
+                                    self._knoxFitTick = 0
+                                    fitWindowToSystem(self)
+                                end
                             end
+                        end)
+                    elseif self._knoxRetry and self._knoxRetry < 25 then
+                        self._knoxRetry = (self._knoxRetry or 0) + 1
+                        if self._knoxRetry == 8 or self._knoxRetry == 18 then
+                            ensureSystemTab(self)
                         end
-                    end)
-                elseif self._knoxRetry and self._knoxRetry < 25 then
-                    self._knoxRetry = (self._knoxRetry or 0) + 1
-                    if self._knoxRetry == 8 or self._knoxRetry == 18 then
-                        ensureSystemTab(self)
                     end
                 end
+                -- Skills tab Strength pips must use real perk level (not Power-boosted)
+                if KnoxSystem.Power and KnoxSystem.Power.withRawPerkLevel then
+                    return KnoxSystem.Power.withRawPerkLevel(body)
+                end
+                return body()
             end
         end
 
         local oldPre = ISCharacterInfoWindow.prerender
-        if oldPre and not ISCharacterInfoWindow._knoxPre317 then
-            ISCharacterInfoWindow._knoxPre317 = true
+        if oldPre then
             ISCharacterInfoWindow.prerender = function(self, ...)
-                softBlueWindow(self)
-                if oldPre then oldPre(self, ...) end
+                local args = { ... }
+                local n = select("#", ...)
+                local function body()
+                    softBlueWindow(self)
+                    if oldPre then oldPre(self, unpack(args, 1, n)) end
+                end
+                if KnoxSystem.Power and KnoxSystem.Power.withRawPerkLevel then
+                    return KnoxSystem.Power.withRawPerkLevel(body)
+                end
+                return body()
             end
         end
 
-        print("[KnoxSystem] Character info patch 3.18 (460px + centered chrome)")
+        local oldRender = ISCharacterInfoWindow.render
+        if oldRender then
+            ISCharacterInfoWindow.render = function(self, ...)
+                local args = { ... }
+                local n = select("#", ...)
+                if KnoxSystem.Power and KnoxSystem.Power.withRawPerkLevel then
+                    return KnoxSystem.Power.withRawPerkLevel(function()
+                        return oldRender(self, unpack(args, 1, n))
+                    end)
+                end
+                return oldRender(self, unpack(args, 1, n))
+            end
+        end
+
+        print("[KnoxSystem] Character info patch 3.19 (raw Strength on Skills UI + System tab)")
     end)
 end
 

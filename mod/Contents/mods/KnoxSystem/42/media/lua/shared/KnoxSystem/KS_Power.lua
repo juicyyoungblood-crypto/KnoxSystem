@@ -192,6 +192,7 @@ end
 function KnoxSystem.Power.onGameStart(player)
     KnoxSystem.Power.hookPerkLevel()
     KnoxSystem.Power.ensureInstanceHook(player)
+    pcall(function() KnoxSystem.Power.hookUiRawDisplay() end)
     -- Clear leftover carry bonus from pre-0.5.127 Power mult implementation
     pcall(function()
         if not player then return end
@@ -226,4 +227,63 @@ function KnoxSystem.Power.hookSmashWindow() end
 function KnoxSystem.Power.syncCarry(...) end
 function KnoxSystem.Power.bonusDamage(...) return 0 end
 
-print("[KnoxSystem] KS_Power loaded (hidden Strength+Power via getPerkLevel; max10 @ 2SP; no Skills icon)")
+--- Skills / character UI must show REAL Strength pips (not real+Power).
+--- Issue1: Strength row drew 13 boxes when Power=10 and real Strength≈3.
+local function wrapUiFn(tbl, methodName)
+    if type(tbl) ~= "table" then return false end
+    local key = "_knoxPowerRaw_" .. tostring(methodName)
+    if tbl[key] then return true end
+    local old = tbl[methodName]
+    if type(old) ~= "function" then return false end
+    tbl[methodName] = function(self, ...)
+        local args = { ... }
+        local n = select("#", ...)
+        if KnoxSystem.Power and KnoxSystem.Power.withRawPerkLevel then
+            return KnoxSystem.Power.withRawPerkLevel(function()
+                return old(self, unpack(args, 1, n))
+            end)
+        end
+        return old(self, unpack(args, 1, n))
+    end
+    tbl[key] = true
+    return true
+end
+
+local function wrapUiType(globalName, methods)
+    pcall(function()
+        -- try require common paths
+        pcall(function() require("ISUI/" .. globalName) end)
+        pcall(function() require("ISUI/PlayerData/" .. globalName) end)
+        pcall(function() require(globalName) end)
+        local tbl = _G[globalName]
+        if type(tbl) ~= "table" then return end
+        for _, m in ipairs(methods) do
+            wrapUiFn(tbl, m)
+        end
+    end)
+end
+
+function KnoxSystem.Power.hookUiRawDisplay()
+    local methods = { "prerender", "render", "update", "renderLevel", "drawLevel", "onMouseMove" }
+    -- Character sheet + Skills tab (B41/B42 names vary)
+    for _, name in ipairs({
+        "ISCharacterInfoWindow",
+        "ISCharacterScreen",
+        "ISCharacterInfo",
+        "ISSkillProgressBar",
+        "ISCharacterProtection",
+        "CharacterScreen",
+        "ISHealthPanel",
+    }) do
+        wrapUiType(name, methods)
+    end
+    -- Also wrap already-patched character window methods if present
+    pcall(function()
+        if ISCharacterInfoWindow then
+            for _, m in ipairs(methods) do wrapUiFn(ISCharacterInfoWindow, m) end
+        end
+    end)
+    return true
+end
+
+print("[KnoxSystem] KS_Power loaded (hidden Strength+Power via getPerkLevel; max10 @ 2SP; Skills UI shows real Strength)")

@@ -255,6 +255,9 @@ Events.OnGameBoot.Add(function()
     if KnoxSystem.Power and KnoxSystem.Power.hookPerkLevel then
         pcall(function() KnoxSystem.Power.hookPerkLevel() end)
     end
+    if KnoxSystem.Power and KnoxSystem.Power.hookUiRawDisplay then
+        pcall(function() KnoxSystem.Power.hookUiRawDisplay() end)
+    end
 end)
 if Events.OnPlayerDeath then
     Events.OnPlayerDeath.Add(onPlayerDeath)
