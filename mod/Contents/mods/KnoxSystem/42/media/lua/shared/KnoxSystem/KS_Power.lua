@@ -186,29 +186,20 @@ function KnoxSystem.Power.ensureInstanceHook(player)
 end
 
 function KnoxSystem.Power.onPlayerUpdate(player)
-    -- Keep instance hook alive; no carry/melee work
+    -- Keep instance hook alive + carry from Power (Java ignores getPerkLevel for maxWeight)
     KnoxSystem.Power.ensureInstanceHook(player)
     local data = KnoxSystem.getPlayerData(player)
     if data then KnoxSystem.Power.clampData(data) end
+    if player then KnoxSystem.Power.syncCarry(player) end
 end
 
 function KnoxSystem.Power.onGameStart(player)
     KnoxSystem.Power.hookPerkLevel()
     KnoxSystem.Power.ensureInstanceHook(player)
     pcall(function() KnoxSystem.Power.hookUiRawDisplay() end)
-    -- Clear leftover carry bonus from pre-0.5.127 Power mult implementation
-    pcall(function()
-        if not player then return end
-        local data = KnoxSystem.getPlayerData(player)
-        local our = data and tonumber(data._knoxPowerWeightBonus) or 0
-        if our and our > 0 and type(player.getMaxWeightBonus) == "function" and type(player.setMaxWeightBonus) == "function" then
-            local b = tonumber(player:getMaxWeightBonus()) or 0
-            local nb = b - our
-            if nb < 0 then nb = 0 end
-            player:setMaxWeightBonus(nb)
-            data._knoxPowerWeightBonus = 0
-        end
-    end)
+    if player then
+        pcall(function() KnoxSystem.Power.syncCarry(player) end)
+    end
     if player and KnoxSystem.Track and KnoxSystem.Track.isChannelOn("power") then
         local real = KnoxSystem.Power.getStrengthReal(player)
         local pow = KnoxSystem.Power.level(player)
@@ -218,7 +209,7 @@ function KnoxSystem.Power.onGameStart(player)
             strengthReal = real,
             strengthEffective = real + pow,
             hooked = _hooked and 1 or 0,
-            note = "getPerkLevel(Strength)=real+Power; raw API for UI/SP; no Skills-tab icon",
+            note = "getPerkLevel(Strength)=real+Power; carry via MaxWeightBonus; no Skills-tab icon",
             liveApplied = (pow > 0) and 1 or 0,
         })
     end
@@ -227,8 +218,96 @@ end
 -- No-op stubs so old bootstrap calls do not error if a stale require path remains
 function KnoxSystem.Power.onMeleeHit(...) end
 function KnoxSystem.Power.hookSmashWindow() end
-function KnoxSystem.Power.syncCarry(...) end
 function KnoxSystem.Power.bonusDamage(...) return 0 end
+
+--- Carry: vanilla maxWeight ignores Lua getPerkLevel(Strength).
+--- Observed B42-ish: Str5→~12, Str10→~20 ⇒ ~+1.6 capacity per Strength level.
+--- Power adds that delta as MaxWeightBonus so UI total = natural + bonus.
+local CARRY_PER_POWER_LEVEL = 1.6
+local _carryLogMs = 0
+
+function KnoxSystem.Power.syncCarry(player)
+    if not player then return end
+    local data = KnoxSystem.getPlayerData(player)
+    if not data then return end
+
+    local pow = KnoxSystem.Power.level(player)
+    local real = KnoxSystem.Power.getStrengthReal(player)
+    local eff = real + pow
+    local wantBonus = pow * CARRY_PER_POWER_LEVEL
+    if wantBonus < 0 then wantBonus = 0 end
+
+    local method = "none"
+    local before, after, natural = -1, -1, -1
+    local prev = tonumber(data._knoxPowerWeightBonus) or 0
+
+    pcall(function()
+        if type(player.getMaxWeight) == "function" then
+            before = tonumber(player:getMaxWeight()) or -1
+        end
+    end)
+
+    local okBonus = false
+    pcall(function()
+        if type(player.setMaxWeightBonus) ~= "function" then return end
+        local curBonus = 0
+        if type(player.getMaxWeightBonus) == "function" then
+            curBonus = tonumber(player:getMaxWeightBonus()) or 0
+        end
+        -- Strip previous Knox bonus, keep other mods' bonus
+        local others = curBonus - prev
+        if others < 0 then others = 0 end
+        player:setMaxWeightBonus(others + wantBonus)
+        data._knoxPowerWeightBonus = wantBonus
+        okBonus = true
+        method = "maxWeightBonus"
+    end)
+
+    if not okBonus then
+        -- Fallback: setMaxWeight each tick from estimated natural
+        pcall(function()
+            if type(player.setMaxWeight) ~= "function" or type(player.getMaxWeight) ~= "function" then return end
+            local cur = tonumber(player:getMaxWeight()) or 0
+            -- If we previously scaled, recover natural ≈ cur - prev
+            natural = cur - prev
+            if natural < 1 then natural = cur end
+            local target = natural + wantBonus
+            player:setMaxWeight(target)
+            data._knoxPowerWeightBonus = wantBonus
+            method = "setMaxWeight"
+        end)
+    end
+
+    pcall(function()
+        if type(player.getMaxWeight) == "function" then
+            after = tonumber(player:getMaxWeight()) or -1
+        end
+        if natural < 0 and before >= 0 then
+            natural = before - prev
+        end
+    end)
+
+    -- Log occasionally on strength_apply / power
+    local ms = 0
+    if getTimestampMs then pcall(function() ms = getTimestampMs() or 0 end) end
+    if ms - _carryLogMs > 4000 then
+        _carryLogMs = ms
+        if KnoxSystem.Track and KnoxSystem.Track.isChannelOn("strength_apply") then
+            KnoxSystem.Track.log("strength_apply", "carry", {
+                reason = "carry",
+                powerLv = pow,
+                strengthReal = real,
+                strengthEffective = eff,
+                ourBonus = wantBonus,
+                perLevel = CARRY_PER_POWER_LEVEL,
+                maxWeightBefore = before,
+                maxWeightAfter = after,
+                method = method,
+                note = "Power carry bridge (Java maxWeight ignores getPerkLevel)",
+            })
+        end
+    end
+end
 
 --- Skills pips: show REAL Strength. Do NOT wrap ISCharacterInfoWindow shell
 --- (that killed System tab + blue chrome when combined with other UI patches).
@@ -275,4 +354,4 @@ function KnoxSystem.Power.hookUiRawDisplay()
     return true
 end
 
-print("[KnoxSystem] KS_Power loaded (hidden Strength+Power; skill pips raw; no window-shell wrap)")
+print("[KnoxSystem] KS_Power loaded (hidden Strength+Power; carry MaxWeightBonus; no TimedAction/window wraps)")

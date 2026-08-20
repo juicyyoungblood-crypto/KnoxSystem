@@ -1,6 +1,7 @@
--- Strength-application probe (logging only — does NOT touch character UI).
+-- Strength-application probe (logging only for actions — does NOT wrap timed-action constructors).
 -- Channel: strength_apply
--- Events: melee attack, shove, fence/climb timed actions, door/thump, muscle strain sample.
+-- Climb: detect via isClimbing / bClimbing (B42 wall climb is Java ClimbWall, not ISClimbOverFence).
+-- Never patch IS* :new — that broke Space-to-climb (0.5.134).
 require "KnoxSystem/KS_ModData"
 require "KnoxSystem/KS_TrackLog"
 require "KnoxSystem/KS_Power"
@@ -11,7 +12,8 @@ local lastLog = {}
 local THROTTLE_MS = {
     melee_hit = 200,
     shove = 250,
-    fence_climb = 400,
+    fence_climb = 500,
+    climb_wall = 500,
     vault = 400,
     door_hit = 200,
     thump = 300,
@@ -19,6 +21,7 @@ local THROTTLE_MS = {
     tree_hit = 400,
     muscle_strain = 2000,
     perk_read = 12000,
+    carry = 4000,
     default = 500,
 }
 
@@ -134,97 +137,33 @@ local function sampleMuscleStrain(player)
     return total, n, table.concat(bits, ",")
 end
 
--- -------- Timed actions (fence / climb / vault) --------
-local function lowerName(o, className)
-    local n = string.lower(tostring(className or ""))
+-- -------- Climb detection (no TimedAction patches) --------
+local wasClimbing = false
+local climbStartMs = 0
+
+local function readClimbing(player)
+    local climbing = false
     pcall(function()
-        if o and o.Type then n = n .. " " .. string.lower(tostring(o.Type)) end
+        if player.isClimbing and player:isClimbing() then climbing = true end
     end)
-    return n
-end
-
-local function classifyAction(name)
-    name = string.lower(tostring(name or ""))
-    if name:find("climb", 1, true) then return "fence_climb" end
-    if name:find("vault", 1, true) or name:find("hop", 1, true) then return "vault" end
-    if name:find("shove", 1, true) then return "shove" end
-    if name:find("force", 1, true) and name:find("door", 1, true) then return "door_force" end
-    if name:find("barricade", 1, true) then return "barricade" end
-    if name:find("destroy", 1, true) or name:find("thump", 1, true) then return "thump_action" end
-    return nil
-end
-
-local function hookTimedAction(globalName)
-    pcall(function()
-        pcall(function() require("TimedActions/" .. globalName) end)
-        local cls = _G[globalName]
-        if type(cls) ~= "table" or cls._knoxStrProbe133 then return end
-        cls._knoxStrProbe133 = true
-
-        if type(cls.new) == "function" then
-            local oldNew = cls.new
-            cls.new = function(self, character, a, b, c, d, e, f)
-                local o = oldNew(self, character, a, b, c, d, e, f)
-                pcall(function()
-                    local ch = character
-                    if o and o.character then ch = o.character end
-                    if not isLocalPlayer(ch) then return end
-                    local nm = lowerName(o, globalName)
-                    local kind = classifyAction(nm) or classifyAction(globalName)
-                    if kind then
-                        logApply(ch, kind, {
-                            actionClass = globalName,
-                            actionName = nm,
-                            maxTime = (o and o.maxTime) or -1,
-                            phase = "start",
-                        })
-                    end
-                end)
-                return o
-            end
-        end
-
-        if type(cls.perform) == "function" then
-            local oldPerform = cls.perform
-            cls.perform = function(self, a, b, c, d, e, f)
-                pcall(function()
-                    local ch = self and self.character
-                    if not isLocalPlayer(ch) then return end
-                    local nm = lowerName(self, globalName)
-                    local kind = classifyAction(nm) or classifyAction(globalName)
-                    if kind then
-                        logApply(ch, kind .. "_done", {
-                            actionClass = globalName,
-                            actionName = nm,
-                            phase = "done",
-                        })
-                    end
-                end)
-                return oldPerform(self, a, b, c, d, e, f)
-            end
-        end
-    end)
-end
-
-function KnoxSystem.StrengthProbe.hookTimedActions()
-    local names = {
-        "ISClimbOverFence",
-        "ISClimbSheetRopeAction",
-        "ISClimbDownSheetRopeAction",
-        "ISClimbThroughWindow",
-        "ISVaultFence",
-        "ISHopFenceAction",
-        "ISClimbOverWall",
-        "ISOpenCloseDoor",
-        "ISForceDoor",
-        "ISDestroyStuffAction",
-        "ISSmashWindow",
-        "ISRemoveBarricade",
-        "ISBarricadeAction",
-    }
-    for i = 1, #names do
-        hookTimedAction(names[i])
+    if not climbing then
+        pcall(function()
+            if player.getVariableBoolean and player:getVariableBoolean("bClimbing") then climbing = true end
+        end)
     end
+    if not climbing then
+        pcall(function()
+            if player.getVariable and tostring(player:getVariable("bClimbing") or "") == "true" then climbing = true end
+        end)
+    end
+    -- hop / vault animation flags
+    local hop = false
+    pcall(function()
+        if player.isSneaking then end
+        if player.getVariableBoolean and player:getVariableBoolean("bClimbFence") then hop = true end
+        if player.getVariableBoolean and player:getVariableBoolean("ClimbFence") then hop = true end
+    end)
+    return climbing, hop
 end
 
 -- -------- Combat / world hits --------
@@ -274,6 +213,11 @@ function KnoxSystem.StrengthProbe.onWeaponHitThumpable(attacker, weapon, thumpab
             if thumpable.getThumpCondition then hp = tonumber(thumpable:getThumpCondition()) or hp end
             if thumpable.getHealth then hp = tonumber(thumpable:getHealth()) or hp end
             if thumpable.getMaxHealth then maxHp = tonumber(thumpable:getMaxHealth()) or maxHp end
+            if name == "?" or name == "" or name == "nil" then
+                if thumpable.getSprite and thumpable:getSprite() and thumpable:getSprite().getName then
+                    name = tostring(thumpable:getSprite():getName() or name)
+                end
+            end
         end
         if weapon and weapon.getDoorDamage then
             doorDmg = tonumber(weapon:getDoorDamage()) or -1
@@ -311,6 +255,32 @@ local tick = 0
 function KnoxSystem.StrengthProbe.onPlayerUpdate(player)
     if not isLocalPlayer(player) then return end
     tick = tick + 1
+
+    -- Climb / hop without TimedAction hooks
+    local climbing, hop = readClimbing(player)
+    if (climbing or hop) and not wasClimbing then
+        wasClimbing = true
+        climbStartMs = nowMs()
+        logApply(player, hop and "vault" or "climb_wall", {
+            phase = "start",
+            note = hop and "hop/vault flag" or "isClimbing/bClimbing (B42 ClimbWall path)",
+        })
+    elseif (climbing or hop) and wasClimbing then
+        -- mid-climb heartbeat (throttled via reason key)
+        if throttleOk("climb_wall") then
+            logApply(player, hop and "vault" or "climb_wall", {
+                phase = "active",
+                climbMs = nowMs() - (climbStartMs or nowMs()),
+            })
+        end
+    elseif wasClimbing and not climbing and not hop then
+        wasClimbing = false
+        logApply(player, "climb_wall_done", {
+            phase = "done",
+            climbMs = nowMs() - (climbStartMs or nowMs()),
+        })
+    end
+
     if tick % 45 == 0 then
         local total, n, detail = sampleMuscleStrain(player)
         if total > lastStrainTotal + 0.02 and total > 0.001 then
@@ -333,19 +303,18 @@ function KnoxSystem.StrengthProbe.boot()
         if KnoxSystem.Track and KnoxSystem.Track.register then
             KnoxSystem.Track.register("strength_apply", {
                 enabled = true,
-                desc = "Strength on actions: melee/shove/fence/door/strain; real vs effective",
+                desc = "Strength on actions: melee/shove/climb/door/strain; real vs effective",
             })
         end
         if KnoxSystem.Config and KnoxSystem.Config.TrackLog and type(KnoxSystem.Config.TrackLog.channels) == "table" then
             if KnoxSystem.Config.TrackLog.channels.strength_apply == nil then
                 KnoxSystem.Config.TrackLog.channels.strength_apply = true
             end
-            -- keep zombie spam off
             KnoxSystem.Config.TrackLog.channels.zombie = false
         end
-        KnoxSystem.StrengthProbe.hookTimedActions()
     end)
-    print("[KnoxSystem] KS_StrengthProbe loaded (strength_apply only; no UI hooks)")
+    -- Explicitly do NOT hook TimedActions — Space climb must stay vanilla
+    print("[KnoxSystem] KS_StrengthProbe loaded (no TimedAction wraps; climb via isClimbing; carry via Power)")
 end
 
 print("[KnoxSystem] KS_StrengthProbe file loaded")
