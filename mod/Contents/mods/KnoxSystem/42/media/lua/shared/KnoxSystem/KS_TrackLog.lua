@@ -22,7 +22,7 @@ local channels = {
     stress = { enabled = true, desc = "Armored Uncomfortable stress relief windows" },
     protection = { enabled = true, desc = "Armored protection mult sync + incoming hit defense" },
     strength = { enabled = false, desc = "DEPRECATED alias — use power" },
-    power = { enabled = true, desc = "Personal Power (was Strength) vs base Strength perk" },
+    power = { enabled = true, desc = "Power=hidden +N Strength (getPerkLevel); real vs effective logs" },
     stamina = { enabled = true, desc = "Personal Endurance/Stamina vs Fitness + endurance bar + drain delta" },
     zombie = { enabled = false, desc = "OFF: zombie stamp/observe/elite loot (was spawn tier verify)" },
     loot = { enabled = true, desc = "Spawned/container loot rarity check (Analyze colors)" },

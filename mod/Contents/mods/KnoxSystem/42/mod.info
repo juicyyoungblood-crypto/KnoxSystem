@@ -2,5 +2,5 @@ name=Knox System
 id=KnoxSystem
 description=System apocalypse / LitRPG layer for Build 42. Personal Level, stats, classes, World Rank. MVP: Warrior + world tiers. New game preferred.
 author=Knox System
-modversion=0.5.126
+modversion=0.5.127
 versionMin=42.0

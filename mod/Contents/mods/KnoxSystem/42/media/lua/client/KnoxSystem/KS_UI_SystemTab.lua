@@ -583,8 +583,16 @@ function KS_SystemTabView:refreshData()
             local pend = data.sp_cart_stats[statName] or 0
             row.label:setName(pend > 0 and string.format("%s: %d (+%d)", statName, cur, pend)
                 or string.format("%s: %d", statName, cur))
+            if statName == "Power" then
+                -- Show 2 SP/lv in label suffix when at 0 pending for clarity
+                local base = pend > 0 and string.format("Power: %d (+%d)", cur, pend) or string.format("Power: %d", cur)
+                row.label:setName(base .. " [2 SP]")
+            end
             row.minus:setVisible(pend > 0)
-            row.plus:setVisible((KnoxSystem.SP.availableForStatsCart(data, player) >= 1 and cur + pend < 20) or pend > 0)
+            local maxStat = (statName == "Power") and 10 or 20
+            local needSp = (statName == "Power") and 2 or 1
+            local avail = KnoxSystem.SP.availableForStatsCart(data, player)
+            row.plus:setVisible((avail >= needSp and cur + pend < maxStat) or pend > 0)
         end
     end
     for _, skName in ipairs(SYS_SKILL_ORDER) do

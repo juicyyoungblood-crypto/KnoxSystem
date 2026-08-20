@@ -159,11 +159,15 @@ end
 
 function KnoxSystem.Stats.applyAll(player, data)
     if not player or not data then return end
+    if KnoxSystem.Power and KnoxSystem.Power.clampData then
+        KnoxSystem.Power.clampData(data)
+    end
     local power = tonumber(data.stat_power) or tonumber(data.stat_strength) or 0
     data.stat_power = power
     data.stat_strength = power -- legacy mirror
-    data._strMult = 1 + MAG * power
-    data._powerMult = data._strMult
+    -- Power no longer uses outcome mult; effective Strength = real + Power via getPerkLevel hook
+    data._strMult = 1
+    data._powerMult = 1
     data._endMult = 1 + MAG * (data.stat_endurance or 0)
     data._mindSpellMult = 1 + MAG * (data.stat_mind or 0)
     data._mindManaFlat = 5 * (data.stat_mind or 0)
@@ -172,15 +176,12 @@ function KnoxSystem.Stats.applyAll(player, data)
     data._resInfectionPP = -5 * (data.stat_resilience or 0)
     data._resImmune = (data.stat_resilience or 0) >= 20
     data._strLiveApplied = false
-    data._powerLiveApplied = false
+    data._powerLiveApplied = (power > 0)
     data._endLiveApplied = false
 end
 
 function KnoxSystem.Stats.meleeDamageMult(player)
-    local data = KnoxSystem.getPlayerData(player)
-    if not data then return 1 end
-    if not data._powerMult and not data._strMult then KnoxSystem.Stats.applyAll(player, data) end
-    return data._powerMult or data._strMult or 1
+    return 1 -- Power no longer multiplies damage; Strength perk checks include Power
 end
 
 function KnoxSystem.Stats.enduranceMult(player)
@@ -194,21 +195,30 @@ function KnoxSystem.Stats.snapshotPower(player)
     local data = KnoxSystem.ensurePlayerInitialized(player, "mid_save_best_effort")
     if data then KnoxSystem.Stats.applyAll(player, data) end
     local personal = data and (tonumber(data.stat_power) or tonumber(data.stat_strength) or 0) or 0
-    local mult = data and (data._powerMult or data._strMult or 1) or 1
-    local basePerk = perkLevel(player, "Strength")
-    local live = false
-    if personal > 0 then live = true end
-    if data and (data._powerLiveApplied or data._powerLiveCarry) then live = true end
+    local basePerk = -1
+    local effPerk = -1
+    if KnoxSystem.Power then
+        if KnoxSystem.Power.getStrengthReal then
+            basePerk = KnoxSystem.Power.getStrengthReal(player)
+        end
+        if KnoxSystem.Power.getStrengthEffective then
+            effPerk = KnoxSystem.Power.getStrengthEffective(player)
+        end
+    else
+        basePerk = perkLevel(player, "Strength") or -1
+        effPerk = basePerk
+    end
     return {
         personalPower = personal,
-        powerMult = mult,
+        powerMult = 1,
         personalStrength = personal,
-        strengthMult = mult,
-        magPerLevel = MAG,
-        baseStrengthPerk = basePerk ~= nil and basePerk or -1,
-        design = "outcome_mult_on_base_Strength_effectiveness",
-        liveApplied = live and 1 or 0,
-        note = live and "live_melee_carry_knockdown_smash" or "moddata_only",
+        strengthMult = 1,
+        magPerLevel = 0,
+        baseStrengthPerk = basePerk,
+        effectiveStrengthPerk = effPerk,
+        design = "hidden_effective_strength_ranks",
+        liveApplied = (personal > 0) and 1 or 0,
+        note = "getPerkLevel(Strength)=real+Power; no Skills-tab icon; max10 @ 2SP",
     }
 end
 

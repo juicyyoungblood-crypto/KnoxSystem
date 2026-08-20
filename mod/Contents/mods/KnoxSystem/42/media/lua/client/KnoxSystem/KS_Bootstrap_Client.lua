@@ -105,6 +105,9 @@ local function onGameStart()
             end
             if KnoxSystem.Stats.logStamina then KnoxSystem.Stats.logStamina(player, "game_start") end
         end
+        if KnoxSystem.Power and KnoxSystem.Power.onGameStart then
+            pcall(function() KnoxSystem.Power.onGameStart(player) end)
+        end
         local d = KnoxSystem.getPlayerData(player)
         lastPL[0] = d and d.personal_level or 0
         -- Class pick is on System tab (Confirm) — no modal popup
@@ -187,9 +190,6 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
         if not instanceof(target, "IsoZombie") then return end
         if weapon and weapon.isRanged and weapon:isRanged() then return end
         KnoxSystem.Warrior.Melee.onDealtDamage(attacker, target, damage or 1, weapon)
-        if KnoxSystem.Power and KnoxSystem.Power.onMeleeHit then
-            KnoxSystem.Power.onMeleeHit(attacker, target, damage or 1, weapon)
-        end
         if KnoxSystem.Analyze and KnoxSystem.Analyze.onDamageDealt then
             KnoxSystem.Analyze.onDamageDealt(attacker, target, damage or 1)
         end
@@ -252,8 +252,8 @@ Events.OnCreatePlayer.Add(onCreatePlayer)
 Events.OnGameBoot.Add(function()
     if KnoxSystem.UI._patchCharacterInfo then KnoxSystem.UI._patchCharacterInfo() end
     if KnoxSystem.UI._patchInventoryTheme then KnoxSystem.UI._patchInventoryTheme() end
-    if KnoxSystem.Power and KnoxSystem.Power.hookSmashWindow then
-        pcall(function() KnoxSystem.Power.hookSmashWindow() end)
+    if KnoxSystem.Power and KnoxSystem.Power.hookPerkLevel then
+        pcall(function() KnoxSystem.Power.hookPerkLevel() end)
     end
 end)
 if Events.OnPlayerDeath then

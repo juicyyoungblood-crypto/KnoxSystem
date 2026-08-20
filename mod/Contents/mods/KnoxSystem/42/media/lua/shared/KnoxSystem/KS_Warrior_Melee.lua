@@ -187,25 +187,31 @@ function KnoxSystem.Warrior.Melee.calcBreakdown(player, damage, weapon)
     local meleeEffMult = KnoxSystem.Warrior.Melee.damageMult(player)
     local meleeSpdMult = KnoxSystem.Warrior.Melee.attackSpeedMult(player)
 
-    local powerMult = 1
     local personalPower = 0
-    if KnoxSystem.Stats then
-        if KnoxSystem.Stats.meleeDamageMult then
-            powerMult = KnoxSystem.Stats.meleeDamageMult(player) or 1
+    local strengthReal = -1
+    local strengthEff = -1
+    if KnoxSystem.Power then
+        personalPower = KnoxSystem.Power.level(player)
+        if KnoxSystem.Power.getStrengthReal then
+            strengthReal = KnoxSystem.Power.getStrengthReal(player)
         end
-        local snap = nil
-        if KnoxSystem.Stats.snapshotPower then
-            snap = KnoxSystem.Stats.snapshotPower(player)
-        elseif KnoxSystem.Stats.snapshotStrength then
-            snap = KnoxSystem.Stats.snapshotStrength(player)
+        if KnoxSystem.Power.getStrengthEffective then
+            strengthEff = KnoxSystem.Power.getStrengthEffective(player)
         end
+    elseif KnoxSystem.Stats and KnoxSystem.Stats.snapshotPower then
+        local snap = KnoxSystem.Stats.snapshotPower(player)
         if snap then
-            personalPower = snap.personalPower or snap.personalStrength or 0
-            powerMult = snap.powerMult or snap.strengthMult or powerMult
+            personalPower = snap.personalPower or 0
+            strengthReal = snap.baseStrengthPerk or -1
+            strengthEff = snap.effectiveStrengthPerk or -1
         end
     end
 
-    local baseStrPerk = perkLevel(player, "Strength") -- vanilla Strength skill
+    -- baseStrengthPerk via getPerkLevel may already include Power; prefer raw real
+    local baseStrPerk = strengthReal
+    if baseStrPerk < 0 then
+        baseStrPerk = perkLevel(player, "Strength")
+    end
     local w = weaponInfo(weapon)
     local wSkillName = resolveWeaponSkillPerk(weapon, w.categories) or ""
     local wSkillLv = -1
@@ -216,38 +222,37 @@ function KnoxSystem.Warrior.Melee.calcBreakdown(player, damage, weapon)
 
     local perkStr, perkSum, perkCount = meleePerkSnapshot(player)
 
-    -- Theoretical Knox stack ON TOP of engine raw (raw already baked vanilla mods)
-    local afterPower = damage * powerMult
-    local designedDmg = damage * powerMult * meleeEffMult
+    -- Power is effective Strength ranks (not a damage mult)
+    local powerMult = 1
+    local afterPower = damage
+    local designedDmg = damage * meleeEffMult
     local xp = damage * XP_PER_DAMAGE
 
-    -- From weapon plate (script min/max) — pre-vanilla
     local baseAvg = w.baseAvg
     local designedFromBase = -1
     if baseAvg and baseAvg > 0 then
-        -- Reference only: baseAvg * power * melee (vanilla skill not modeled as a clean mult)
-        designedFromBase = baseAvg * powerMult * meleeEffMult
+        designedFromBase = baseAvg * meleeEffMult
     end
 
     return {
-        -- Chain labels (grep-friendly order)
-        chain = "baseWeapon → engineRaw(vanilla skill+str) → ×Power → ×MeleeProf",
+        chain = "baseWeapon → engineRaw(vanilla skill+effStrength) → ×MeleeProf",
         baseMin = w.baseMin,
         baseMax = w.baseMax,
         baseAvg = w.baseAvg,
-        rawDmg = damage, -- engine hit
+        rawDmg = damage,
         weaponSkill = wSkillName,
         weaponSkillLv = wSkillLv,
-        baseStrengthPerk = baseStrPerk ~= nil and baseStrPerk or -1, -- vanilla Strength
-        personalPower = personalPower, -- Knox Power (was Strength)
-        powerMult = powerMult,
+        baseStrengthPerk = baseStrPerk ~= nil and baseStrPerk or -1,
+        strengthEffective = strengthEff,
+        personalPower = personalPower,
+        powerMult = 1,
         powerLv = personalPower,
         meleeLv = meleeLv,
         meleeEffMult = meleeEffMult,
         meleeSpdMult = meleeSpdMult,
         dmgAfterPower = afterPower,
         dmgAfterMelee = damage * meleeEffMult,
-        designedDmg = designedDmg, -- raw * power * meleeProf
+        designedDmg = designedDmg,
         designedFromBaseAvg = designedFromBase,
         xpGain = xp,
         xpPerDmg = XP_PER_DAMAGE,
@@ -255,9 +260,8 @@ function KnoxSystem.Warrior.Melee.calcBreakdown(player, damage, weapon)
         effPerLevel = EFF_PER_LEVEL,
         liveMeleeApplied = 0,
         livePowerApplied = (personalPower > 0) and 1 or 0,
-        -- legacy keys
-        strMult = powerMult,
-        personalStrength = personalPower, -- legacy alias
+        strMult = 1,
+        personalStrength = personalPower,
         liveStrApplied = 0,
         dmgAfterStr = afterPower,
         weapon = w.weapon,
@@ -270,7 +274,7 @@ function KnoxSystem.Warrior.Melee.calcBreakdown(player, damage, weapon)
         meleePerks = perkStr,
         meleePerkSum = perkSum,
         meleePerkCount = perkCount,
-        note = "rawDmg=engine (vanilla weapon skill+Strength baked in); Power LIVE adds bonus≈raw*(powerMult-1) + knockdown; designedDmg=raw*powerMult*meleeEffMult",
+        note = "Power=hidden +N Strength via getPerkLevel; no damage mult; engine raw may already use eff Strength if Java reads hooked API",
     }
 end
 

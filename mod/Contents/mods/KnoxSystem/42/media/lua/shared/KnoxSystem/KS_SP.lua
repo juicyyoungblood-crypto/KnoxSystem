@@ -14,7 +14,27 @@ local STAT_KEYS = {
     Resilience = "stat_resilience",
 }
 
-local STAT_MAX = 20
+-- Per-stat caps / SP cost (Power = effective Strength ranks)
+local STAT_MAX = {
+    Power = 10,
+    Endurance = 20,
+    Mind = 20,
+    Resilience = 20,
+}
+local STAT_COST = {
+    Power = 2,
+    Endurance = 1,
+    Mind = 1,
+    Resilience = 1,
+}
+
+local function statMax(statName)
+    return STAT_MAX[statName] or 20
+end
+
+local function statCostPerLevel(statName)
+    return STAT_COST[statName] or 1
+end
 
 function KnoxSystem.SP.statField(statName)
     return STAT_KEYS[statName]
@@ -55,8 +75,9 @@ function KnoxSystem.SP.costSkillPending(currentLevel, pending)
     return cost
 end
 
-function KnoxSystem.SP.costStatPending(pending)
-    return pending or 0
+function KnoxSystem.SP.costStatPending(statName, pending)
+    pending = pending or 0
+    return pending * statCostPerLevel(statName)
 end
 
 function KnoxSystem.SP.totalCartCostStats(data)
@@ -70,7 +91,7 @@ function KnoxSystem.SP.totalCartCostStats(data)
                 local cur = data[def.field] or 0
                 total = total + KnoxSystem.SystemSkills.costPending(name, cur, pend)
             else
-                total = total + KnoxSystem.SP.costStatPending(pend)
+                total = total + KnoxSystem.SP.costStatPending(name, pend)
             end
         end
     end
@@ -113,9 +134,18 @@ function KnoxSystem.SP.getBaseSkillLevel(player, skillKey)
     if not player then return 0 end
     local perk = KnoxSystem.SP.resolvePerk(skillKey)
     if not perk then return 0 end
-    local ok, lvl = pcall(function() return player:getPerkLevel(perk) end)
-    if ok and lvl then return tonumber(lvl) or 0 end
-    return 0
+    -- Strength must use REAL level (Power boosts getPerkLevel for gameplay checks only)
+    local function read()
+        local ok, lvl = pcall(function() return player:getPerkLevel(perk) end)
+        if ok and lvl then return tonumber(lvl) or 0 end
+        return 0
+    end
+    if skillKey == "Strength" or (Perks and perk == Perks.Strength) then
+        if KnoxSystem.Power and KnoxSystem.Power.withRawPerkLevel then
+            return KnoxSystem.Power.withRawPerkLevel(read)
+        end
+    end
+    return read()
 end
 
 function KnoxSystem.SP.resolvePerk(skillKey)
@@ -182,8 +212,10 @@ function KnoxSystem.SP.plusStat(player, statName)
     if not field then return false, "bad stat" end
     local cur = data[field] or 0
     local pend = data.sp_cart_stats[statName] or 0
-    if cur + pend >= STAT_MAX then return false, "max" end
-    if KnoxSystem.SP.availableForStatsCart(data, player) < 1 then return false, "sp" end
+    local maxL = statMax(statName)
+    if cur + pend >= maxL then return false, "max" end
+    local nextCost = statCostPerLevel(statName)
+    if KnoxSystem.SP.availableForStatsCart(data, player) < nextCost then return false, "sp" end
     data.sp_cart_stats[statName] = pend + 1
     return true
 end
@@ -246,8 +278,11 @@ function KnoxSystem.SP.confirmStats(player)
                 local field = STAT_KEYS[statName]
                 if field then
                     local cur = data[field] or 0
-                    local add = math.min(pend, STAT_MAX - cur)
+                    local add = math.min(pend, statMax(statName) - cur)
                     data[field] = cur + add
+                    if field == "stat_power" and KnoxSystem.Power and KnoxSystem.Power.clampData then
+                        KnoxSystem.Power.clampData(data)
+                    end
                     print(string.format("[KnoxSystem] Stat %s -> %d", statName, data[field]))
                 end
             end
@@ -257,6 +292,9 @@ function KnoxSystem.SP.confirmStats(player)
     data.sp_cart_stats = {}
     if KnoxSystem.Stats and KnoxSystem.Stats.applyAll then
         KnoxSystem.Stats.applyAll(player, data)
+    end
+    if KnoxSystem.Power and KnoxSystem.Power.onGameStart then
+        pcall(function() KnoxSystem.Power.onGameStart(player) end)
     end
     if KnoxSystem.DStorage and KnoxSystem.DStorage.sync then
         local okSync, errSync = pcall(function()

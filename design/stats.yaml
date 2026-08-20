@@ -13,23 +13,32 @@ stats:
   Power:
     sp_name: Power
     was: Strength
-    status: live_0.5.123
+    status: live_hidden_effective_strength_0.5.127
     not: base_skill_Strength
+    max_level: 10
+    sp_cost_per_level: 2
     effect_per_level:
-      type: outcome_multiplier_on_base_strength_effectiveness
-      magnitude: 0.05  # +5% per level → ×(1 + 0.05 * level); L20 = ×2.0
-    live_hooks:
-      melee_damage: "bonus ≈ raw * (powerMult - 1) on zombie hit"
-      knockdown_chance: "linear to 25% at L20 on melee hit"
-      carry_capacity: "maxWeight *= powerMult (baseline tracked)"
-      window_smash: "ISSmashWindow maxTime shortened; barricade remove too"
+      type: hidden_effective_strength_rank
+      magnitude: 1  # each Power level adds +1 to Strength checks via getPerkLevel(Strength)
+    implementation:
+      storage: ModData stat_power  # no Skills-tab perk icon / no PerkFactory skill row
+      hook: IsoPlayer_getPerkLevel_Strength_returns_real_plus_Power
+      raw_api: Power.withRawPerkLevel / getStrengthReal for UI and SP skill cart
+    removed_live_hooks:
+      - melee_damage_mult
+      - knockdown_chance
+      - carry_maxWeight_bonus
+      - window_smash_speed
+    note: >
+      Strength skill UI/XP should use real level (System tab SP cart forced raw).
+      Gameplay Lua that calls getPerkLevel(Strength) sees real+Power.
+      Pure Java paths that bypass Lua getPerkLevel may need future bridges.
     draft_targets:
       - carry_capacity_related_outcomes
       - melee_damage_related_strength_outcomes
       - knockdown_push_force
       - window_door_force
       - other_vanilla_strength_effect_hooks
-    note: Does not replace base Strength skill progression. Renamed Power to avoid confusion with vanilla Strength.
 
   Strength:
     deprecated: true
