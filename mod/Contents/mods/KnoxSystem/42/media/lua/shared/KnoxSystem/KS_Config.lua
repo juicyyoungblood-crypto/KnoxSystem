@@ -105,10 +105,13 @@ KnoxSystem.Config.TrackLog = {
         damage = true,
         stress = true,
         protection = true,
-        strength = true,
+        strength = false, -- deprecated alias
+        power = true,
+        strength_apply = true, -- fence/strain/shove/door Strength probes
         stamina = true,
-        zombie = true,
+        zombie = false, -- hard OFF for Strength probe pass
         loot = true,
+        resilience = true,
     },
 }
 

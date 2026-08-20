@@ -9,6 +9,7 @@ require "KnoxSystem/KS_SystemSkills"
 require "KnoxSystem/KS_BaseSkills"
 require "KnoxSystem/KS_Stats"
 require "KnoxSystem/KS_Power"
+require "KnoxSystem/KS_StrengthProbe"
 require "KnoxSystem/KS_Resilience"
 require "KnoxSystem/KS_DStorage"
 require "KnoxSystem/KS_Class"
@@ -150,6 +151,9 @@ local function onPlayerUpdate(player)
         if KnoxSystem.Power and KnoxSystem.Power.onPlayerUpdate then
             KnoxSystem.Power.onPlayerUpdate(player)
         end
+        if KnoxSystem.StrengthProbe and KnoxSystem.StrengthProbe.onPlayerUpdate then
+            KnoxSystem.StrengthProbe.onPlayerUpdate(player)
+        end
         if KnoxSystem.Warrior and KnoxSystem.Warrior.Melee and KnoxSystem.Warrior.Melee.onPlayerUpdate then
             KnoxSystem.Warrior.Melee.onPlayerUpdate(player)
         end
@@ -183,6 +187,11 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
     pcall(function()
         if KnoxSystem.Warrior and KnoxSystem.Warrior.Charge and KnoxSystem.Warrior.Charge.onWeaponHit then
             KnoxSystem.Warrior.Charge.onWeaponHit(attacker, target)
+        end
+    end)
+    pcall(function()
+        if KnoxSystem.StrengthProbe and KnoxSystem.StrengthProbe.onWeaponHitCharacter then
+            KnoxSystem.StrengthProbe.onWeaponHitCharacter(attacker, target, weapon, damage)
         end
     end)
     pcall(function()
@@ -258,6 +267,9 @@ Events.OnGameBoot.Add(function()
     if KnoxSystem.Power and KnoxSystem.Power.hookUiRawDisplay then
         pcall(function() KnoxSystem.Power.hookUiRawDisplay() end)
     end
+    if KnoxSystem.StrengthProbe and KnoxSystem.StrengthProbe.boot then
+        pcall(function() KnoxSystem.StrengthProbe.boot() end)
+    end
 end)
 if Events.OnPlayerDeath then
     Events.OnPlayerDeath.Add(onPlayerDeath)
@@ -282,6 +294,9 @@ local function onWeaponHitTree(attacker, weapon, ...)
         if not isP then return end
         if KnoxSystem.Warrior and KnoxSystem.Warrior.Melee and KnoxSystem.Warrior.Melee.onWorldWeaponUse then
             KnoxSystem.Warrior.Melee.onWorldWeaponUse(attacker, weapon, "hit_tree")
+        end
+        if KnoxSystem.StrengthProbe and KnoxSystem.StrengthProbe.onWeaponHitTree then
+            KnoxSystem.StrengthProbe.onWeaponHitTree(attacker, weapon, ...)
         end
     end)
 end
@@ -320,6 +335,9 @@ if Events.OnWeaponHitThumpable then
         pcall(function()
             if KnoxSystem.Warrior and KnoxSystem.Warrior.Melee and KnoxSystem.Warrior.Melee.onWorldWeaponUse then
                 KnoxSystem.Warrior.Melee.onWorldWeaponUse(attacker, weapon, "hit_thumpable")
+            end
+            if KnoxSystem.StrengthProbe and KnoxSystem.StrengthProbe.onWeaponHitThumpable then
+                KnoxSystem.StrengthProbe.onWeaponHitThumpable(attacker, weapon, thumpable, ...)
             end
         end)
     end)
