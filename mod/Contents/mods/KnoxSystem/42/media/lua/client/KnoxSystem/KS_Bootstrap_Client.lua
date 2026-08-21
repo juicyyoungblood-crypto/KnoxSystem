@@ -312,6 +312,7 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
             weapon = wpnName,
             weaponMaxDamage = wpnDmg,
             bareHands = bare,
+            isShove = (KnoxSystem.Power and KnoxSystem.Power._lastHitWasShove) and 1 or 0,
             ranged = ranged,
             note = "Plate=round((eventDmg+powerActual)*100). Colors: blue=under base, green=normal, red=crit (from eventDmg vs weapon base).",
             noteKillCap = "powerActual capped to HP left when hooks run (no fake overkill on plate).",
@@ -347,8 +348,19 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
         if not instanceof(attacker, "IsoPlayer") then return end
         if not instanceof(target, "IsoZombie") then return end
         if weapon and weapon.isRanged and weapon:isRanged() then return end
-        KnoxSystem.Warrior.Melee.onDealtDamage(attacker, target, damage or 1, weapon)
-        if KnoxSystem.Analyze and KnoxSystem.Analyze.onDamageDealt then
+        if KnoxSystem.Warrior.Melee.onDealtDamage then
+            KnoxSystem.Warrior.Melee.onDealtDamage(attacker, target, damage or 1, weapon)
+        end
+        local isShove = false
+        pcall(function()
+            if KnoxSystem.Power and KnoxSystem.Power.isShoveHit then
+                isShove = KnoxSystem.Power.isShoveHit(attacker, weapon, damage)
+            end
+            if KnoxSystem.Power and KnoxSystem.Power._lastHitWasShove then
+                isShove = true
+            end
+        end)
+        if KnoxSystem.Analyze and KnoxSystem.Analyze.onDamageDealt and not isShove then
             KnoxSystem.Analyze.onDamageDealt(attacker, target, shown, {
                 eventDamage = eventDmg,
                 powerBonus = powerActual,
@@ -360,6 +372,16 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
                 weapon = weapon,
                 targetKnockedDown = targetDown,
                 targetCrawling = targetCrawling,
+            })
+        elseif isShove and KnoxSystem.Track and KnoxSystem.Track.isChannelOn("damage") then
+            KnoxSystem.Track.log("damage", "plate_skip_shove", {
+                reason = "plate_skip_shove",
+                eventDamage = eventDmg,
+                powerBonus = powerBonus,
+                hpDelta = hpDelta,
+                hpBefore = hpBefore,
+                hpAfter = hpAfter,
+                note = "Shove/push: no Analyze damage plate (control only)",
             })
         end
         if KnoxSystem.ZombieObserve and KnoxSystem.ZombieObserve.onMeleeHit then

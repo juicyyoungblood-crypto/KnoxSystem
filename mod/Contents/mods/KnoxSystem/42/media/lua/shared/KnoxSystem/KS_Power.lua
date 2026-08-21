@@ -726,6 +726,75 @@ function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
     end)
     if not alive then return end
 
+--- True shove / unarmed push (no Analyze plate, no Power weapon snip).
+--- Note: shove with a weapon equipped still often reports that weapon in the event.
+function KnoxSystem.Power.isShoveHit(attacker, weapon, damage)
+    local shove = false
+    pcall(function()
+        if attacker and attacker.isDoShove and attacker:isDoShove() then shove = true end
+    end)
+    pcall(function()
+        if attacker and attacker.getVariableBoolean then
+            if attacker:getVariableBoolean("bShove") then shove = true end
+            if attacker:getVariableBoolean("bDoShove") then shove = true end
+            if attacker:getVariableBoolean("ShoveAnim") then shove = true end
+            if attacker:getVariableBoolean("bShoveAiming") then shove = true end
+        end
+    end)
+    pcall(function()
+        if attacker and attacker.getVariableString then
+            local st = string.lower(tostring(attacker:getVariableString("AttackType") or ""))
+            if st:find("shove", 1, true) then shove = true end
+            local an = string.lower(tostring(attacker:getVariableString("AttackAnim") or ""))
+            if an:find("shove", 1, true) then shove = true end
+        end
+    end)
+    pcall(function()
+        if not weapon then shove = true end
+        if weapon and weapon.isBareHands and weapon:isBareHands() then shove = true end
+        if weapon and weapon.getFullType then
+            local ft = string.lower(tostring(weapon:getFullType() or ""))
+            if ft:find("barehands", 1, true) then shove = true end
+        end
+        if weapon and weapon.getSwingAnim then
+            local a = string.lower(tostring(weapon:getSwingAnim() or ""))
+            if a:find("shove", 1, true) then shove = true end
+        end
+    end)
+    -- Zero / nil event damage and no weapon swing → treat as non-damaging shove-like
+    local dmg = tonumber(damage)
+    if dmg ~= nil and dmg <= 0 then
+        shove = true
+    end
+    return shove
+end
+
+function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
+    if not attacker or not target then return end
+
+    local isP, isZ = false, false
+    pcall(function()
+        if instanceof and instanceof(attacker, "IsoPlayer") then isP = true end
+    end)
+    if not isP then return end
+    pcall(function()
+        if attacker.isLocalPlayer and not attacker:isLocalPlayer() then isP = false end
+    end)
+    if not isP then return end
+
+    local pow = KnoxSystem.Power.level(attacker)
+    if pow < 1 then return end
+
+    pcall(function()
+        if instanceof and instanceof(target, "IsoZombie") then isZ = true end
+    end)
+    if not isZ then return end
+    local alive = true
+    pcall(function()
+        if target.isAlive and not target:isAlive() then alive = false end
+    end)
+    if not alive then return end
+
     -- Ranged: no Power damage / knock
     local ranged = false
     pcall(function()
@@ -733,15 +802,21 @@ function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
     end)
     if ranged then return end
 
-    local bare = false
+    local shove = KnoxSystem.Power.isShoveHit(attacker, weapon, damage)
+    local bare = shove
     pcall(function()
         if weapon and weapon.isBareHands and weapon:isBareHands() then bare = true end
         if not bare and weapon and weapon.getFullType then
             local ft = string.lower(tostring(weapon:getFullType() or ""))
             if ft:find("barehands", 1, true) then bare = true end
         end
-        if not weapon then bare = true end -- nil weapon ≈ shove/unarmed
+        if not weapon then bare = true end
     end)
+
+    -- Stash for Analyze / bootstrap (shove → no plate)
+    KnoxSystem.Power._lastHitWasShove = shove and true or false
+    KnoxSystem.Power._lastHitBonusDamage = 0
+    KnoxSystem.Power._lastHitEventDamage = tonumber(damage) or 0
 
     local dmg = tonumber(damage) or 0
     local bonus = 0
@@ -751,8 +826,8 @@ function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
     local vanillaKD, vanillaStagger = readControlFlags(target)
     local vanillaControlled = (vanillaKD == 1) or (vanillaStagger == 1)
 
-    -- 1) Damage bonus: weapons only, scales 10% per Power level
-    if (not bare) and dmg > 0 then
+    -- 1) Damage bonus: weapons only (not shove / bare), scales 10% per Power level
+    if (not bare) and (not shove) and dmg > 0 then
         bonus = dmg * MELEE_BONUS_PER_LEVEL * pow
         if bonus > 0 then
             pcall(function()
@@ -764,7 +839,6 @@ function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
             end)
         end
     end
-    -- Expose for Analyze plate (event dmg + this bonus)
     KnoxSystem.Power._lastHitBonusDamage = bonus or 0
     KnoxSystem.Power._lastHitEventDamage = dmg
 
