@@ -1,17 +1,27 @@
-Sandbox_KnoxSystem = "Knox System",
-Sandbox_KnoxSystem_PowerDamagePercentPerLevel = "Power: melee damage % per level",
-Sandbox_KnoxSystem_PowerDamagePercentPerLevel_tooltip = "Each Power level adds this percent of hit damage as bonus (weapons). 10 = +10% per level (default). Range 1-100.",
-Sandbox_KnoxSystem_PowerKnockPointsPerLevel = "Power: knockdown chance points per level",
-Sandbox_KnoxSystem_PowerKnockPointsPerLevel_tooltip = "Added to the knockdown roll as flat percentage points: knockChance = (this * Power) + (0.4 * Strength). Default 2. Not a percent-of-percent.",
-Sandbox_KnoxSystem_EnduranceStaminaPercentPerLevel = "Endurance: stamina efficiency % per level",
-Sandbox_KnoxSystem_EnduranceStaminaPercentPerLevel_tooltip = "Refund this % of each stamina loss per Endurance level, and add this % extra on each stamina gain. Default 6 (L10 = 60%).",
-Sandbox_KnoxSystem_EnduranceEncumbranceDamagePercentPerLevel = "Endurance: over-encumbrance damage resist % per level",
-Sandbox_KnoxSystem_EnduranceEncumbranceDamagePercentPerLevel_tooltip = "When over weight (or Heavy Load moodle), refund this % of incoming damage per Endurance level. Default 6 (L10 = 60%). Separate from stamina %.",
-Sandbox_KnoxSystem_SpCostPower = "SP cost per Power level",
-Sandbox_KnoxSystem_SpCostPower_tooltip = "Skill points required to buy one Power level on the System tab. Default 2.",
-Sandbox_KnoxSystem_SpCostEndurance = "SP cost per Endurance level",
-Sandbox_KnoxSystem_SpCostEndurance_tooltip = "Skill points required to buy one Endurance level on the System tab. Default 2.",
-Sandbox_KnoxSystem_PersonalXpPercent = "Personal XP from skill XP (%)",
-Sandbox_KnoxSystem_PersonalXpPercent_tooltip = "Scales Personal XP minted from base skill XP. 100 = current weight tables as-is. Default 50 = half of those weights. Range 10-200.",
-Sandbox_KnoxSystem_AllowSprintersIfVanillaOff = "Knox sprinters even if vanilla sprinters off",
-Sandbox_KnoxSystem_AllowSprintersIfVanillaOff_tooltip = "If checked, Knox world tiers may still stamp sprinter walk types when sandbox zombie speed has no sprinters. If unchecked, Knox never forces sprinters unless vanilla already allows them.",
+Sandbox_EN = {
+    Sandbox_KnoxSystem = "Knox System",
+
+    Sandbox_KnoxSystem_PowerDamagePercentPerLevel = "Bonus Damage per level of Power",
+    Sandbox_KnoxSystem_PowerDamagePercentPerLevel_tooltip = "Each Power level adds this percent of hit damage as bonus (weapons only). Min 1, Max 100, Default 10.",
+
+    Sandbox_KnoxSystem_PowerKnockPointsPerLevel = "Knockdown Chance per level of Power",
+    Sandbox_KnoxSystem_PowerKnockPointsPerLevel_tooltip = "Flat points added to the knockdown roll: knockChance = (this x Power) + (0.4 x Strength). Min 0, Max 10, Default 2.",
+
+    Sandbox_KnoxSystem_EnduranceStaminaPercentPerLevel = "Stamina Efficiency per level of Endurance",
+    Sandbox_KnoxSystem_EnduranceStaminaPercentPerLevel_tooltip = "Refund this % of each stamina loss per Endurance level, and add this % extra on each stamina gain. Min 1, Max 20, Default 6 (L10 = 60%).",
+
+    Sandbox_KnoxSystem_EnduranceEncumbranceDamagePercentPerLevel = "Over-Encumbrance Damage Resist per level of Endurance",
+    Sandbox_KnoxSystem_EnduranceEncumbranceDamagePercentPerLevel_tooltip = "When over weight (or Heavy Load moodle), refund this % of incoming damage per Endurance level. Separate from stamina efficiency. Min 0, Max 20, Default 6 (L10 = 60%).",
+
+    Sandbox_KnoxSystem_SpCostPower = "SP Cost per level of Power",
+    Sandbox_KnoxSystem_SpCostPower_tooltip = "Skill points required to buy one Power level on the System tab. Min 1, Max 5, Default 2.",
+
+    Sandbox_KnoxSystem_SpCostEndurance = "SP Cost per level of Endurance",
+    Sandbox_KnoxSystem_SpCostEndurance_tooltip = "Skill points required to buy one Endurance level on the System tab. Min 1, Max 5, Default 2.",
+
+    Sandbox_KnoxSystem_PersonalXpPercent = "Personal XP from Skill XP",
+    Sandbox_KnoxSystem_PersonalXpPercent_tooltip = "Scales Personal XP minted from base skill XP. 100 = full weight tables. Default 50 = half. Min 10, Max 200, Default 50.",
+
+    Sandbox_KnoxSystem_AllowSprintersIfVanillaOff = "Allow Knox Sprinters if Vanilla Sprinters Off",
+    Sandbox_KnoxSystem_AllowSprintersIfVanillaOff_tooltip = "If checked, Knox world tiers may still stamp sprinter walk types when sandbox zombie speed has no sprinters. If unchecked, Knox never forces sprinters unless vanilla already allows them. Default: Yes.",
+}
