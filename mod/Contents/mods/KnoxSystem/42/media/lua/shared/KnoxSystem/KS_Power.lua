@@ -125,33 +125,93 @@ end
 
 local function ucwfModActive()
     local ok = false
+    local foundId = nil
     pcall(function()
-        if getActivatedMods then
-            local mods = getActivatedMods()
-            if mods and mods.contains then
-                -- Workshop id string variants
-                if mods:contains("UnifiedCarryWeightFramework") then ok = true end
-                if mods:contains("UCWF") then ok = true end
-                if mods:contains("Unified Carry Weight Framework") then ok = true end
-            end
-            -- Some builds expose as list
-            if not ok and mods and mods.size then
-                local n = mods:size()
-                for i = 0, n - 1 do
-                    local id = tostring(mods:get(i) or "")
-                    local low = id:lower()
-                    if low:find("unifiedcarry", 1, true) or low:find("ucwf", 1, true) then
-                        ok = true
-                        break
+        if not getActivatedMods then return end
+        local mods = getActivatedMods()
+        if not mods then return end
+
+        -- One-time dump so we can see the exact mod id string UCWF uses
+        if not KnoxSystem.Power._modListLogged then
+            KnoxSystem.Power._modListLogged = true
+            local ids = {}
+            pcall(function()
+                if mods.size then
+                    for i = 0, mods:size() - 1 do
+                        ids[#ids + 1] = tostring(mods:get(i) or "")
                     end
                 end
+            end)
+            -- ArrayList / table fallbacks
+            pcall(function()
+                if #ids == 0 and type(mods) == "table" then
+                    for k, v in pairs(mods) do
+                        ids[#ids + 1] = tostring(v) .. (type(k) ~= "number" and ("@" .. tostring(k)) or "")
+                    end
+                end
+            end)
+            pcall(function()
+                if mods.toString then
+                    print("[KnoxSystem] getActivatedMods(): " .. tostring(mods:toString()))
+                end
+            end)
+            if #ids > 0 then
+                print("[KnoxSystem] Activated mods (" .. tostring(#ids) .. "): " .. table.concat(ids, " | "))
+            else
+                print("[KnoxSystem] Activated mods: (could not enumerate; type=" .. type(mods) .. ")")
+            end
+        end
+
+        local function matchId(id)
+            if not id then return false end
+            local s = tostring(id)
+            local low = s:lower():gsub("%s+", "")
+            -- Match workshop id / folder-ish names
+            if low == "unifiedcarryweightframework" then return true end
+            if low == "ucwf" then return true end
+            if low:find("unifiedcarryweight", 1, true) then return true end
+            if low:find("unifiedcarry", 1, true) then return true end
+            if low:find("ucwf", 1, true) then return true end
+            return false
+        end
+
+        if mods.contains then
+            -- Exact ids commonly used
+            local candidates = {
+                "UnifiedCarryWeightFramework",
+                "UCWF",
+                "Unified Carry Weight Framework",
+            }
+            for i = 1, #candidates do
+                local c = candidates[i]
+                local hit = false
+                pcall(function() hit = mods:contains(c) and true or false end)
+                if hit then ok = true; foundId = c; break end
+            end
+        end
+
+        if not ok and mods.size then
+            local n = mods:size()
+            for i = 0, n - 1 do
+                local id = nil
+                pcall(function() id = mods:get(i) end)
+                if matchId(id) then ok = true; foundId = tostring(id); break end
             end
         end
     end)
+
     if not ok then
         pcall(function()
-            if type(rawget(_G, "UnifiedCarryWeightFramework")) == "table" then ok = true end
+            if type(rawget(_G, "UnifiedCarryWeightFramework")) == "table" then
+                ok = true
+                foundId = "global:UnifiedCarryWeightFramework"
+            end
         end)
+    end
+
+    if ok and not KnoxSystem.Power._ucwfActiveLogged then
+        KnoxSystem.Power._ucwfActiveLogged = true
+        print("[KnoxSystem] UCWF detected as active via: " .. tostring(foundId))
     end
     return ok
 end
