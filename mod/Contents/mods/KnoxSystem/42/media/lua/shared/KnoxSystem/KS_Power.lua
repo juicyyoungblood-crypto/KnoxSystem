@@ -297,6 +297,33 @@ end
 -- Knock: only if vanilla did NOT already stagger/knock this hit ("failed" control)
 --   knockChance = 2*Power + 0.4*Strength
 --   stagger if roll in [knockChance, knockChance+13)
+local function readControlFlags(target)
+    -- returns knockedDown, staggerBack as 0/1, or -1 if API missing
+    local kd, st = -1, -1
+    pcall(function()
+        if target and target.isKnockedDown then
+            kd = target:isKnockedDown() and 1 or 0
+        end
+    end)
+    pcall(function()
+        if target and target.isStaggerBack then
+            st = target:isStaggerBack() and 1 or 0
+        end
+    end)
+    return kd, st
+end
+
+local function logPowerCombat(fields)
+    if not KnoxSystem.Track then return end
+    if KnoxSystem.Track.isChannelOn("strength_apply") then
+        KnoxSystem.Track.log("strength_apply", fields.reason or "power_hit", fields)
+    elseif KnoxSystem.Track.isChannelOn("power") then
+        KnoxSystem.Track.log("power", fields.reason or "power_hit", fields)
+    elseif KnoxSystem.Track.isChannelOn("damage") then
+        KnoxSystem.Track.log("damage", fields.reason or "power_hit", fields)
+    end
+end
+
 function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
     if not attacker or not target then return end
 
@@ -344,6 +371,10 @@ function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
     local bonus = 0
     local hpBefore, hpAfter = -1, -1
 
+    -- Vanilla control BEFORE our reroll (engine usually already applied this frame)
+    local vanillaKD, vanillaStagger = readControlFlags(target)
+    local vanillaControlled = (vanillaKD == 1) or (vanillaStagger == 1)
+
     -- 1) Damage bonus: weapons only, scales 10% per Power level
     if (not bare) and dmg > 0 then
         bonus = dmg * MELEE_BONUS_PER_LEVEL * pow
@@ -359,19 +390,15 @@ function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
     end
 
     -- 2) Compensated knock/stagger reroll if vanilla control failed this hit
-    local alreadyStagger, alreadyDown = false, false
-    pcall(function()
-        if target.isStaggerBack and target:isStaggerBack() then alreadyStagger = true end
-    end)
-    pcall(function()
-        if target.isKnockedDown and target:isKnockedDown() then alreadyDown = true end
-    end)
-
-    local didKnock, didStagger = 0, 0
-    local knockChance, staggerChance, roll = -1, -1, -1
     local strReal = KnoxSystem.Power.getStrengthReal(attacker)
+    local knockChance, staggerChance, roll = -1, -1, -1
+    local rerollAttempted = 0
+    local rerollOutcome = "skipped_vanilla_already_controlled"
+    local setKnockOk, setStaggerOk = -1, -1
 
-    if (not alreadyStagger) and (not alreadyDown) then
+    if not vanillaControlled then
+        rerollAttempted = 1
+        rerollOutcome = "miss" -- default until roll decides
         knockChance = (KNOCK_PER_POWER * pow) + (KNOCK_PER_STR * strReal)
         staggerChance = knockChance + STAGGER_BAND
         pcall(function()
@@ -384,25 +411,58 @@ function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
         if type(roll) ~= "number" then roll = 0 end
 
         if roll < knockChance then
+            setKnockOk = 0
             local ok = pcall(function()
-                if target.setKnockedDown then target:setKnockedDown(true) end
+                if target.setKnockedDown then
+                    target:setKnockedDown(true)
+                    setKnockOk = 1
+                else
+                    setKnockOk = -1 -- API missing
+                end
             end)
-            if ok then didKnock = 1 end
+            if not ok then setKnockOk = 0 end
+            if setKnockOk == 1 then
+                rerollOutcome = "knockdown"
+            elseif setKnockOk == -1 then
+                rerollOutcome = "knockdown_api_missing"
+            else
+                rerollOutcome = "knockdown_set_failed"
+            end
         elseif roll < staggerChance then
+            setStaggerOk = 0
             local ok = pcall(function()
-                if target.setStaggerBack then target:setStaggerBack(true) end
+                if target.setStaggerBack then
+                    target:setStaggerBack(true)
+                    setStaggerOk = 1
+                else
+                    setStaggerOk = -1
+                end
             end)
-            if ok then didStagger = 1 end
+            if not ok then setStaggerOk = 0 end
+            if setStaggerOk == 1 then
+                rerollOutcome = "stagger"
+            elseif setStaggerOk == -1 then
+                rerollOutcome = "stagger_api_missing"
+            else
+                rerollOutcome = "stagger_set_failed"
+            end
+        else
+            rerollOutcome = "miss"
         end
     end
 
-    -- Logging (throttled)
+    -- Final control flags after our attempt (verify setters stuck)
+    local finalKD, finalStagger = readControlFlags(target)
+
+    -- Always log control outcome (this is the diagnostic the player asked for).
+    -- Slight throttle only to avoid multi-target hit spam same frame.
     local ms = 0
     if getTimestampMs then pcall(function() ms = getTimestampMs() or 0 end) end
-    if not KnoxSystem.Power._lastMeleeLogMs then KnoxSystem.Power._lastMeleeLogMs = 0 end
-    if (ms - KnoxSystem.Power._lastMeleeLogMs) >= 250 then
-        KnoxSystem.Power._lastMeleeLogMs = ms
-        local fields = {
+    if not KnoxSystem.Power._lastCtrlLogMs then KnoxSystem.Power._lastCtrlLogMs = 0 end
+    local forceLog = (rerollAttempted == 1) or (vanillaControlled) or (bonus > 0)
+    if forceLog and (ms - KnoxSystem.Power._lastCtrlLogMs) >= 50 then
+        KnoxSystem.Power._lastCtrlLogMs = ms
+        logPowerCombat({
             reason = bare and "shove_control" or "melee_power",
             powerLv = pow,
             strengthReal = strReal,
@@ -412,23 +472,24 @@ function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
             bonusDamage = bonus,
             hpBefore = hpBefore,
             hpAfter = hpAfter,
-            alreadyStagger = alreadyStagger and 1 or 0,
-            alreadyDown = alreadyDown and 1 or 0,
+            -- Vanilla original (pre-reroll)
+            vanillaKnockedDown = vanillaKD,
+            vanillaStaggerBack = vanillaStagger,
+            vanillaControlled = vanillaControlled and 1 or 0,
+            -- Reroll
+            rerollAttempted = rerollAttempted,
+            rerollOutcome = rerollOutcome, -- skipped_vanilla_already_controlled | miss | knockdown | stagger | *_api_missing | *_set_failed
             knockChance = knockChance,
             staggerChance = staggerChance,
             staggerBand = STAGGER_BAND,
             roll = roll,
-            didKnock = didKnock,
-            didStagger = didStagger,
-            note = "dmg=10%*Power weapons; knock reroll if vanilla failed; stagger band +13",
-        }
-        if KnoxSystem.Track and KnoxSystem.Track.isChannelOn("strength_apply") then
-            KnoxSystem.Track.log("strength_apply", fields.reason, fields)
-        elseif KnoxSystem.Track and KnoxSystem.Track.isChannelOn("damage") then
-            KnoxSystem.Track.log("damage", "power_hit", fields)
-        elseif KnoxSystem.Track and KnoxSystem.Track.isChannelOn("power") then
-            KnoxSystem.Track.log("power", "hit", fields)
-        end
+            setKnockedDownOk = setKnockOk,
+            setStaggerBackOk = setStaggerOk,
+            -- After reroll
+            finalKnockedDown = finalKD,
+            finalStaggerBack = finalStagger,
+            note = "vanilla KD/stagger T/F + reroll outcome; dmg 10%*Power weapons only",
+        })
     end
 end
 
