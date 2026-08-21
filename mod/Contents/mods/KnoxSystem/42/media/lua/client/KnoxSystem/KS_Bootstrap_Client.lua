@@ -293,7 +293,8 @@ elseif Events.OnHitZombie then
 end
 
 -- Tree / world dull paths for Melee Proficiency sharpness refund (A2)
-local function onWeaponHitTree(attacker, weapon, ...)
+-- NOTE: Kahlua forbids using `...` inside nested functions — capture args explicitly.
+local function onWeaponHitTree(attacker, weapon, a1, a2, a3, a4)
     pcall(function()
         if not attacker then return end
         local isP = false
@@ -308,12 +309,12 @@ local function onWeaponHitTree(attacker, weapon, ...)
             KnoxSystem.StrengthProbe.onWeaponHitTree(attacker, weapon)
         end
         if KnoxSystem.Power and KnoxSystem.Power.onWeaponHitTree then
-            KnoxSystem.Power.onWeaponHitTree(attacker, weapon, ...)
+            KnoxSystem.Power.onWeaponHitTree(attacker, weapon, a1, a2, a3, a4)
         end
     end)
 end
 
-local function onWeaponHitXp(owner, weapon, hitObject, damage, ...)
+local function onWeaponHitXp(owner, weapon, hitObject, damage)
     -- Fires for various hit types; filter non-zombie world-ish when possible
     pcall(function()
         if not owner then return end
@@ -343,7 +344,7 @@ if Events.OnWeaponHitXp then
 end
 -- Some builds use OnDestroyIsoThumpable / hit thumpable for barricades/doors
 if Events.OnWeaponHitThumpable then
-    Events.OnWeaponHitThumpable.Add(function(attacker, weapon, thumpable, ...)
+    Events.OnWeaponHitThumpable.Add(function(attacker, weapon, thumpable, dmg, a2, a3, a4)
         pcall(function()
             if KnoxSystem.Warrior and KnoxSystem.Warrior.Melee and KnoxSystem.Warrior.Melee.onWorldWeaponUse then
                 KnoxSystem.Warrior.Melee.onWorldWeaponUse(attacker, weapon, "hit_thumpable")
@@ -352,7 +353,6 @@ if Events.OnWeaponHitThumpable then
                 KnoxSystem.StrengthProbe.onWeaponHitThumpable(attacker, weapon, thumpable)
             end
             if KnoxSystem.Power and KnoxSystem.Power.onWeaponHitThumpable then
-                local dmg = select(1, ...)
                 KnoxSystem.Power.onWeaponHitThumpable(attacker, weapon, thumpable, dmg)
             end
         end)
