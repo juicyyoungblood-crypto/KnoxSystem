@@ -223,11 +223,15 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
         if target.getHealth then hpAfter = tonumber(target:getHealth()) end
     end)
 
-    -- Display total: max(HP lost during our hooks + event dmg if needed, event + Power bonus)
+    -- Display total: max(HP lost during our hooks, event + Power bonus)
     local eventDmg = tonumber(damage) or 0
     local powerBonus = 0
+    local powerLv = 0
     if KnoxSystem.Power then
         powerBonus = tonumber(KnoxSystem.Power._lastHitBonusDamage) or 0
+        if KnoxSystem.Power.level then
+            pcall(function() powerLv = KnoxSystem.Power.level(attacker) or 0 end)
+        end
     end
     local hpDelta = 0
     if hpBefore ~= nil and hpAfter ~= nil then
@@ -238,12 +242,69 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
     -- Prefer event+bonus so plate matches full hit; use larger of the two.
     local sumParts = eventDmg + powerBonus
     local shown = sumParts
-    if hpDelta > shown then shown = hpDelta end
+    local pick = "event+powerBonus"
+    if hpDelta > shown then
+        shown = hpDelta
+        pick = "hpDelta"
+    end
     -- If we saw a clear post-hook HP drop and event looks like pre-apply, combine
     if hpDelta > 0.001 and eventDmg > 0 and hpDelta + 0.05 < eventDmg then
-        -- unusual: delta smaller than event alone — stick with sumParts
         shown = sumParts
+        pick = "event+powerBonus_deltaSmall"
     end
+
+    -- Weapon / HP max context for scale confusion (PZ zombies are ~1–3 HP, not 150)
+    local wpnName, wpnDmg, bare, ranged = "?", -1, 0, 0
+    pcall(function()
+        if weapon then
+            if weapon.getDisplayName then wpnName = tostring(weapon:getDisplayName() or "?") end
+            if weapon.getName and wpnName == "?" then wpnName = tostring(weapon:getName() or "?") end
+            if weapon.getMaxDamage then wpnDmg = tonumber(weapon:getMaxDamage()) or -1 end
+            if weapon.isBareHands and weapon:isBareHands() then bare = 1 end
+            if weapon.isRanged and weapon:isRanged() then ranged = 1 end
+        end
+    end)
+    local hpMax = -1
+    pcall(function()
+        if target.getMaxHealth then hpMax = tonumber(target:getMaxHealth()) or -1 end
+    end)
+    if hpMax < 0 then
+        pcall(function()
+            -- some builds expose only getHealth (current); no separate max
+            if target.getHealth then hpMax = -1 end
+        end)
+    end
+
+    local function logHitBreakdown()
+        if not KnoxSystem.Track then return end
+        local fields = {
+            reason = "hit_damage_breakdown",
+            eventDamage = eventDmg,
+            powerLv = powerLv,
+            powerBonus = powerBonus,
+            powerBonusFormula = string.format("%.3f * 0.10 * %d", eventDmg, powerLv),
+            sumEventPlusPower = sumParts,
+            hpBeforeHooks = hpBefore,
+            hpAfterHooks = hpAfter,
+            hpDeltaDuringHooks = hpDelta,
+            hpMax = hpMax,
+            plateShown = shown,
+            platePick = pick,
+            weapon = wpnName,
+            weaponMaxDamage = wpnDmg,
+            bareHands = bare,
+            ranged = ranged,
+            note = "PZ zombie HP is a small float (~0.5–3 full), NOT 150. Plate uses same units as getHealth()/event damage.",
+            noteScale = "If you expect '150 HP' RP numbers: multiply plate by ~50–100 for rough fantasy scale only — game does not use that.",
+        }
+        if KnoxSystem.Track.isChannelOn("damage") then
+            KnoxSystem.Track.log("damage", "hit_breakdown", fields)
+        end
+        if KnoxSystem.Track.isChannelOn("analyze") then
+            KnoxSystem.Track.log("analyze", "plate_number", fields)
+        end
+    end
+    pcall(logHitBreakdown)
 
     pcall(function()
         if not instanceof(attacker, "IsoPlayer") then return end
@@ -257,6 +318,7 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
                 hpDelta = hpDelta,
                 hpBefore = hpBefore,
                 hpAfter = hpAfter,
+                platePick = pick,
             })
         end
         if KnoxSystem.ZombieObserve and KnoxSystem.ZombieObserve.onMeleeHit then

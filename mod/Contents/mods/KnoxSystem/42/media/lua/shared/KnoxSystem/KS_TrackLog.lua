@@ -18,7 +18,8 @@ end
 
 local channels = {
     -- name -> { enabled = bool, desc = string }
-    damage = { enabled = true, desc = "Melee hit full chain: weapon base → engine raw → weapon skill → Strength → Power → MeleeProf" },
+    damage = { enabled = true, desc = "Melee hit: event dmg + Power bonus + HP delta → Analyze plate (PZ HP is ~0–3 float, not 150)" },
+    analyze = { enabled = true, desc = "Analyze plate damage number generation breakdown" },
     stress = { enabled = true, desc = "Armored Uncomfortable stress relief windows" },
     protection = { enabled = true, desc = "Armored protection mult sync + incoming hit defense" },
     strength = { enabled = false, desc = "DEPRECATED alias — use power" },
