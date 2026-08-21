@@ -98,7 +98,10 @@ function KnoxSystem.Power.bonusDamage(...) return 0 end
 
 -- -------- Carry (+1 per Power) --------
 local _carryLogMs = 0
-local _ucwfResolved = nil -- cache which API path works
+local _ucwfResolved = nil -- string path name, "none", or "disabled"
+local _ucwfRequireOnce = false
+local _ucwfApi = nil
+local _ucwfGiveUp = false -- true after we know API doesn't move weight
 
 local function ucwfPresent()
     local ok = false
@@ -111,81 +114,81 @@ local function ucwfPresent()
     end)
     if not ok then
         pcall(function()
-            if UCWF ~= nil then ok = true end
-            if UCWF_API ~= nil then ok = true end
-            if UnifiedCarryWeight ~= nil then ok = true end
+            if rawget(_G, "UCWF") ~= nil then ok = true end
+            if rawget(_G, "UCWF_API") ~= nil then ok = true end
+            if rawget(_G, "UnifiedCarryWeight") ~= nil then ok = true end
         end)
     end
     return ok
 end
 
---- Try UCWF APIs (framework ships examples; names vary by version).
-local function applyUCWF(player, bonus)
-    -- Do NOT permanently lock out after first failure/no-op; retry discovery
-    if _ucwfResolved == "disabled" then return false, "ucwf_disabled" end
+--- One-time require + global lookup (failed requires WARN once, not every tick)
+local function discoverUCWF()
+    if _ucwfRequireOnce then
+        return _ucwfApi
+    end
+    _ucwfRequireOnce = true
 
+    -- Silent once: only try if mod id is active; still quiet if paths missing
+    if ucwfPresent() then
+        local paths = {
+            "UCWF/UCWF",
+            "UCWF",
+            "shared/UCWF",
+            "UCWF/client/UCWF",
+            "UCWF/shared/UCWF",
+        }
+        for i = 1, #paths do
+            -- pcall require still WARNs in B42; avoid after first discovery pass
+            pcall(function() require(paths[i]) end)
+        end
+    end
+
+    _ucwfApi = rawget(_G, "UCWF") or rawget(_G, "UCWF_API") or rawget(_G, "UnifiedCarryWeight")
+        or rawget(_G, "UCW") or rawget(_G, "CarryWeightFramework")
+
+    if type(_ucwfApi) == "table" and not KnoxSystem.Power._ucwfKeysLogged then
+        KnoxSystem.Power._ucwfKeysLogged = true
+        local keys = {}
+        for k, v in pairs(_ucwfApi) do
+            keys[#keys + 1] = tostring(k) .. "=" .. type(v)
+        end
+        table.sort(keys)
+        print("[KnoxSystem] UCWF API keys: " .. table.concat(keys, ", "))
+    elseif not _ucwfApi then
+        print("[KnoxSystem] UCWF: no global API table (DIY MaxWeightBonus only)")
+    end
+    return _ucwfApi
+end
+
+--- Try UCWF APIs. After first confirmed no-op / unknown, stop calling forever this session.
+local function applyUCWF(player, bonus)
+    if _ucwfGiveUp or _ucwfResolved == "disabled" or _ucwfResolved == "none" then
+        return false, "ucwf_skip"
+    end
+
+    local api = discoverUCWF()
     local tried = {}
     local function mark(name, ok)
         tried[#tried + 1] = name .. (ok and "=ok" or "=no")
         return ok
     end
 
-    pcall(function() require "UCWF/UCWF" end)
-    pcall(function() require "UCWF" end)
-    pcall(function() require "shared/UCWF" end)
-    pcall(function() require "UCWF/client/UCWF" end)
-    pcall(function() require "UCWF/shared/UCWF" end)
-
-    local api = rawget(_G, "UCWF") or rawget(_G, "UCWF_API") or rawget(_G, "UnifiedCarryWeight")
-        or rawget(_G, "UCW") or rawget(_G, "CarryWeightFramework")
-
-    -- Dump keys once for diagnostics
-    if api and type(api) == "table" and not KnoxSystem.Power._ucwfKeysLogged then
-        KnoxSystem.Power._ucwfKeysLogged = true
-        local keys = {}
-        for k, v in pairs(api) do
-            keys[#keys + 1] = tostring(k) .. "=" .. type(v)
-        end
-        table.sort(keys)
-        print("[KnoxSystem] UCWF API keys: " .. table.concat(keys, ", "))
-    end
-
     if type(api) == "table" then
-        local attempts = {
-            { "setModifier_table", function()
-                return api.setModifier(api, player, UCWF_KEY, { totalFlat = bonus, totalMult = 1, baseFlat = 0, baseMult = 1 })
-            end },
-            { "setModifier_flat", function()
-                return api.setModifier(player, UCWF_KEY, bonus)
-            end },
-            { "SetModifier", function()
-                return api.SetModifier(api, player, UCWF_KEY, { totalFlat = bonus })
-            end },
-            { "addTotalFlat", function()
-                return api.addTotalFlat(api, player, UCWF_KEY, bonus)
-            end },
-            { "setTotalWeightBonus", function()
-                return api.setTotalWeightBonus(api, player, UCWF_KEY, bonus)
-            end },
-            { "AddBonus", function()
-                return api.AddBonus(api, player, UCWF_KEY, bonus, "total")
-            end },
-            { "addBonus", function()
-                return api.addBonus(api, player, UCWF_KEY, bonus)
-            end },
-            { "SetPlayerModifier", function()
-                return api.SetPlayerModifier(player, UCWF_KEY, bonus)
-            end },
-            { "setPlayerTotalFlat", function()
-                return api.setPlayerTotalFlat(player, UCWF_KEY, bonus)
-            end },
+        local candidates = {
+            "setModifier", "SetModifier", "addTotalFlat", "setTotalWeightBonus",
+            "AddBonus", "addBonus", "SetPlayerModifier", "setPlayerTotalFlat",
+            "registerBonus", "setFlatBonus", "addFlatBonus", "SetBonus",
         }
-        for i = 1, #attempts do
-            local name, fn = attempts[i][1], attempts[i][2]
-            if api[name:match("^([^_]+)")] or name:find("set", 1, true) or name:find("Add", 1, true) then
-                local ok = pcall(fn)
-                -- Only treat as candidate if callable existed — real validation is maxWeight delta in syncCarry
-                if ok and mark(name, true) then
+        for i = 1, #candidates do
+            local name = candidates[i]
+            local fn = api[name]
+            if type(fn) == "function" then
+                local ok1 = pcall(fn, api, player, UCWF_KEY, bonus)
+                local ok2 = pcall(fn, player, UCWF_KEY, bonus)
+                local ok3 = pcall(fn, api, player, UCWF_KEY, { totalFlat = bonus })
+                local ok4 = pcall(fn, api, UCWF_KEY, bonus)
+                if (ok1 or ok2 or ok3 or ok4) and mark(name, true) then
                     _ucwfResolved = name
                     return true, "UCWF." .. name
                 else
@@ -193,15 +196,14 @@ local function applyUCWF(player, bonus)
                 end
             end
         end
-        -- Brute: any function containing "bonus" or "modifier"
+        -- One brute pass over weight-ish methods
         for k, v in pairs(api) do
             if type(v) == "function" then
                 local lk = string.lower(tostring(k))
                 if lk:find("bonus", 1, true) or lk:find("modifier", 1, true) or lk:find("weight", 1, true) then
                     local ok1 = pcall(v, api, player, UCWF_KEY, bonus)
                     local ok2 = pcall(v, player, UCWF_KEY, bonus)
-                    local ok3 = pcall(v, api, UCWF_KEY, bonus)
-                    if (ok1 or ok2 or ok3) and mark("brute_" .. tostring(k), true) then
+                    if (ok1 or ok2) and mark("brute_" .. tostring(k), true) then
                         _ucwfResolved = "brute_" .. tostring(k)
                         return true, "UCWF." .. tostring(k)
                     end
@@ -219,8 +221,10 @@ local function applyUCWF(player, bonus)
     end
 
     if not ucwfPresent() then
+        _ucwfResolved = "none"
         return false, "ucwf_not_loaded"
     end
+    -- Present but no working call this tick — caller validates weight; may set give-up
     return false, "ucwf_api_unknown:" .. table.concat(tried, ",")
 end
 
@@ -307,27 +311,35 @@ function KnoxSystem.Power.syncCarry(player)
     method = diyMethod or "none"
     after = diyAfter or readMax()
 
-    -- Try UCWF as additional/preferred path — only keep if maxWeight actually moves up
-    -- (false "success" from wrong API must not clear DIY)
-    if wantBonus > 0 then
+    -- Try UCWF only until we know it works or give up (no per-tick require spam)
+    if wantBonus > 0 and not _ucwfGiveUp then
         local beforeUc = readMax()
         local ucwfOk, ucwfHow = applyUCWF(player, wantBonus)
         if ucwfOk then
             local afterUc = readMax()
-            -- Accept UCWF only if weight rose by ~wantBonus or at least +0.5
             if afterUc >= (beforeUc + math.max(0.5, wantBonus * 0.5)) then
                 method = tostring(ucwfHow) .. "+diy"
                 after = afterUc
             else
-                -- UCWF call was a no-op; keep DIY, don't cache false success forever
-                _ucwfResolved = nil
+                -- No-op API — stop hammering UCWF this session
+                _ucwfGiveUp = true
+                _ucwfResolved = "none"
                 method = diyMethod .. "|ucwf_noop:" .. tostring(ucwfHow)
                 after = readMax()
+                print("[KnoxSystem] UCWF call did not raise maxWeight — using DIY only")
             end
         else
             method = diyMethod .. "|" .. tostring(ucwfHow)
-            -- If UCWF is present it may OVERWRITE MaxWeightBonus every tick.
-            -- Re-assert DIY after a short delay path: set both bonus and absolute if needed.
+            if tostring(ucwfHow or ""):find("ucwf_api_unknown", 1, true)
+                or tostring(ucwfHow or "") == "ucwf_not_loaded"
+                or tostring(ucwfHow or "") == "ucwf_skip" then
+                _ucwfGiveUp = true
+                _ucwfResolved = "none"
+                if tostring(ucwfHow or ""):find("unknown", 1, true) then
+                    print("[KnoxSystem] UCWF present but API unknown — using DIY only")
+                end
+            end
+            -- Re-assert DIY / force if framework overwrites
             if tostring(ucwfHow or ""):find("ucwf", 1, true) then
                 pcall(function()
                     if type(player.setMaxWeightBonus) == "function" then
@@ -336,7 +348,6 @@ function KnoxSystem.Power.syncCarry(player)
                         player:setMaxWeightBonus(others + wantBonus)
                         data._knoxPowerWeightBonus = wantBonus
                     end
-                    -- Hard set total if still flat
                     local now = readMax()
                     if wantBonus > 0 and before > 0 and now < before + wantBonus * 0.5 then
                         if type(player.setMaxWeight) == "function" then
