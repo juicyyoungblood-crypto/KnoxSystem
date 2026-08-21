@@ -2,5 +2,5 @@ name=Knox System
 id=KnoxSystem
 description=System apocalypse / LitRPG layer for Build 42. Power: +1 carry/level, +10%/Power melee and doors/windows, knock reroll. MVP: Warrior + world tiers.
 author=Knox System
-modversion=0.5.142
+modversion=0.5.143
 versionMin=42.0

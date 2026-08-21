@@ -122,30 +122,17 @@ local function ucwfPresent()
     return ok
 end
 
---- One-time require + global lookup (failed requires WARN once, not every tick)
+--- One-time global lookup only (no require — UCWF loads itself; require spam WARNs in B42)
 local function discoverUCWF()
     if _ucwfRequireOnce then
         return _ucwfApi
     end
     _ucwfRequireOnce = true
 
-    -- Silent once: only try if mod id is active; still quiet if paths missing
-    if ucwfPresent() then
-        local paths = {
-            "UCWF/UCWF",
-            "UCWF",
-            "shared/UCWF",
-            "UCWF/client/UCWF",
-            "UCWF/shared/UCWF",
-        }
-        for i = 1, #paths do
-            -- pcall require still WARNs in B42; avoid after first discovery pass
-            pcall(function() require(paths[i]) end)
-        end
-    end
-
     _ucwfApi = rawget(_G, "UCWF") or rawget(_G, "UCWF_API") or rawget(_G, "UnifiedCarryWeight")
         or rawget(_G, "UCW") or rawget(_G, "CarryWeightFramework")
+        or rawget(_G, "UnitedCarryWeightFramework")
+        or rawget(_G, "UnitedCarryWeightFramework_Client")
 
     if type(_ucwfApi) == "table" and not KnoxSystem.Power._ucwfKeysLogged then
         KnoxSystem.Power._ucwfKeysLogged = true
@@ -156,7 +143,7 @@ local function discoverUCWF()
         table.sort(keys)
         print("[KnoxSystem] UCWF API keys: " .. table.concat(keys, ", "))
     elseif not _ucwfApi then
-        print("[KnoxSystem] UCWF: no global API table (DIY MaxWeightBonus only)")
+        print("[KnoxSystem] UCWF: no global API table found (DIY MaxWeightBonus only; framework may still load)")
     end
     return _ucwfApi
 end
