@@ -180,7 +180,7 @@ function KnoxSystem.Stats.applyAll(player, data)
     data._resImmune = (data.stat_resilience or 0) >= 20
     data._strLiveApplied = false
     data._powerLiveApplied = (power > 0)
-    data._endLiveApplied = false
+    -- _endLiveApplied already set above from stat_endurance > 0 (do not clear)
 end
 
 function KnoxSystem.Stats.meleeDamageMult(player)
