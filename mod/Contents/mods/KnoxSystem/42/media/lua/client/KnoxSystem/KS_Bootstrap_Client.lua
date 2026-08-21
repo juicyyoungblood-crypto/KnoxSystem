@@ -298,6 +298,9 @@ local function onWeaponHitTree(attacker, weapon, ...)
         if KnoxSystem.StrengthProbe and KnoxSystem.StrengthProbe.onWeaponHitTree then
             KnoxSystem.StrengthProbe.onWeaponHitTree(attacker, weapon)
         end
+        if KnoxSystem.Power and KnoxSystem.Power.onWeaponHitTree then
+            KnoxSystem.Power.onWeaponHitTree(attacker, weapon, ...)
+        end
     end)
 end
 
@@ -338,6 +341,10 @@ if Events.OnWeaponHitThumpable then
             end
             if KnoxSystem.StrengthProbe and KnoxSystem.StrengthProbe.onWeaponHitThumpable then
                 KnoxSystem.StrengthProbe.onWeaponHitThumpable(attacker, weapon, thumpable)
+            end
+            if KnoxSystem.Power and KnoxSystem.Power.onWeaponHitThumpable then
+                local dmg = select(1, ...)
+                KnoxSystem.Power.onWeaponHitThumpable(attacker, weapon, thumpable, dmg)
             end
         end)
     end)

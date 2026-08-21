@@ -1,8 +1,9 @@
 -- Personal Power (System tab only, max 10 @ 2 SP)
--- Design ≥0.5.137:
+-- Design ≥0.5.139:
 --   NO getPerkLevel(Strength) hook
 --   Carry: +1 max weight per Power level (UCWF if present, else MaxWeightBonus)
 --   Melee dmg: +10% of hit * PowerLv (weapons only, not ranged/shove)
+--   Thumpables/trees: same % using door/tree damage as base
 --   Knock/stagger reroll if vanilla failed: chance = 2*Power + 0.4*Str; stagger band +13
 require "KnoxSystem/KS_ModData"
 require "KnoxSystem/KS_TrackLog"
@@ -493,6 +494,222 @@ function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
     end
 end
 
+-- -------- Thumpables (doors / windows / fences / barricades): mirror weapon Power bonus --------
+-- Same scale as melee: bonus = baseHit * 0.10 * PowerLv
+-- baseHit prefers weapon:getDoorDamage(); fallback small constant.
+-- No knock/stagger (objects). Bare hands skipped (doorDamage usually 0).
+function KnoxSystem.Power.onWeaponHitThumpable(attacker, weapon, thumpable, damageArg)
+    if not attacker or not thumpable then return end
+
+    local isP = false
+    pcall(function()
+        if instanceof and instanceof(attacker, "IsoPlayer") then isP = true end
+    end)
+    if not isP then return end
+    pcall(function()
+        if attacker.isLocalPlayer and not attacker:isLocalPlayer() then isP = false end
+    end)
+    if not isP then return end
+
+    local pow = KnoxSystem.Power.level(attacker)
+    if pow < 1 then return end
+
+    -- Skip characters if mis-routed
+    local isChar = false
+    pcall(function()
+        if instanceof and instanceof(thumpable, "IsoZombie") then isChar = true end
+        if instanceof and instanceof(thumpable, "IsoPlayer") then isChar = true end
+    end)
+    if isChar then return end
+
+    local bare = false
+    pcall(function()
+        if weapon and weapon.isBareHands and weapon:isBareHands() then bare = true end
+        if not bare and weapon and weapon.getFullType then
+            local ft = string.lower(tostring(weapon:getFullType() or ""))
+            if ft:find("barehands", 1, true) then bare = true end
+        end
+    end)
+    if bare then return end
+
+    local ranged = false
+    pcall(function()
+        if weapon and weapon.isRanged and weapon:isRanged() then ranged = true end
+    end)
+    if ranged then return end
+
+    -- Base hit amount this swing (vanilla already applied something; we add Power %)
+    local baseHit = tonumber(damageArg) or 0
+    if baseHit <= 0 then
+        pcall(function()
+            if weapon and weapon.getDoorDamage then
+                baseHit = tonumber(weapon:getDoorDamage()) or 0
+            end
+        end)
+    end
+    if baseHit <= 0 then
+        pcall(function()
+            if weapon and weapon.getTreeDamage then
+                baseHit = tonumber(weapon:getTreeDamage()) or 0
+            end
+        end)
+    end
+    if baseHit <= 0 then baseHit = 1 end -- minimal tick so Power still matters on odd weapons
+
+    local bonus = baseHit * MELEE_BONUS_PER_LEVEL * pow
+    if bonus <= 0 then return end
+
+    local name = "?"
+    local hpBefore, hpAfter = -1, -1
+    local method = "none"
+    local destroyed = 0
+
+    pcall(function()
+        if thumpable.getName then name = tostring(thumpable:getName() or name) end
+        if (name == "?" or name == "" or name == "nil") and thumpable.getSprite and thumpable:getSprite() then
+            local spr = thumpable:getSprite()
+            if spr and spr.getName then name = tostring(spr:getName() or name) end
+        end
+    end)
+
+    -- Prefer Damage(amount) if present; else setHealth
+    pcall(function()
+        if thumpable.getHealth then
+            hpBefore = tonumber(thumpable:getHealth()) or -1
+        elseif thumpable.getThumpCondition then
+            hpBefore = tonumber(thumpable:getThumpCondition()) or -1
+        end
+    end)
+
+    local applied = false
+    pcall(function()
+        if type(thumpable.Damage) == "function" then
+            thumpable:Damage(bonus)
+            method = "Damage"
+            applied = true
+        end
+    end)
+    if not applied then
+        pcall(function()
+            if type(thumpable.setHealth) == "function" and hpBefore >= 0 then
+                local nh = hpBefore - bonus
+                if nh < 0 then nh = 0 end
+                thumpable:setHealth(nh)
+                method = "setHealth"
+                applied = true
+            end
+        end)
+    end
+    if not applied then
+        pcall(function()
+            -- Some IsoThumpable use condition 0..1
+            if type(thumpable.setThumpCondition) == "function" and type(thumpable.getThumpCondition) == "function" then
+                local c = tonumber(thumpable:getThumpCondition()) or 1
+                local maxHp = 100
+                pcall(function()
+                    if thumpable.getMaxHealth then maxHp = tonumber(thumpable:getMaxHealth()) or maxHp end
+                end)
+                if maxHp < 1 then maxHp = 100 end
+                local hpEst = c * maxHp
+                local nh = hpEst - bonus
+                if nh < 0 then nh = 0 end
+                thumpable:setThumpCondition(nh / maxHp)
+                method = "setThumpCondition"
+                applied = true
+                hpBefore = hpEst
+            end
+        end)
+    end
+
+    pcall(function()
+        if thumpable.getHealth then
+            hpAfter = tonumber(thumpable:getHealth()) or -1
+        elseif thumpable.getThumpCondition and hpBefore >= 0 then
+            local maxHp = 100
+            pcall(function()
+                if thumpable.getMaxHealth then maxHp = tonumber(thumpable:getMaxHealth()) or maxHp end
+            end)
+            hpAfter = (tonumber(thumpable:getThumpCondition()) or 0) * maxHp
+        end
+        if thumpable.isDestroyed and thumpable:isDestroyed() then destroyed = 1 end
+        if hpAfter == 0 or (hpBefore > 0 and hpAfter >= 0 and hpAfter < hpBefore and hpAfter <= 0.01) then
+            -- best-effort
+        end
+    end)
+
+    -- Throttle object spam
+    local ms = 0
+    if getTimestampMs then pcall(function() ms = getTimestampMs() or 0 end) end
+    if not KnoxSystem.Power._lastThumpLogMs then KnoxSystem.Power._lastThumpLogMs = 0 end
+    if (ms - KnoxSystem.Power._lastThumpLogMs) >= 100 then
+        KnoxSystem.Power._lastThumpLogMs = ms
+        logPowerCombat({
+            reason = "thump_power",
+            powerLv = pow,
+            object = name,
+            baseHit = baseHit,
+            bonusPerLevel = MELEE_BONUS_PER_LEVEL,
+            bonusDamage = bonus,
+            hpBefore = hpBefore,
+            hpAfter = hpAfter,
+            method = method,
+            applied = applied and 1 or 0,
+            destroyed = destroyed,
+            note = "Power thumpable mirror: +10%*Power of door/tree damage onto object HP",
+        })
+    end
+end
+
+-- Trees: same Power % using tree damage as base
+function KnoxSystem.Power.onWeaponHitTree(attacker, weapon, ...)
+    if not attacker then return end
+    local isP = false
+    pcall(function()
+        if instanceof and instanceof(attacker, "IsoPlayer") then isP = true end
+    end)
+    if not isP then return end
+    local pow = KnoxSystem.Power.level(attacker)
+    if pow < 1 then return end
+
+    -- Tree HP is often not exposed the same way; log intended bonus for now + try Damage on arg
+    local baseHit = 0
+    pcall(function()
+        if weapon and weapon.getTreeDamage then baseHit = tonumber(weapon:getTreeDamage()) or 0 end
+    end)
+    if baseHit <= 0 then
+        pcall(function()
+            if weapon and weapon.getDoorDamage then baseHit = tonumber(weapon:getDoorDamage()) or 0 end
+        end)
+    end
+    if baseHit <= 0 then baseHit = 1 end
+    local bonus = baseHit * MELEE_BONUS_PER_LEVEL * pow
+
+    -- Optional: first extra arg might be square/tree object on some builds
+    local treeObj = select(1, ...)
+    local applied = 0
+    pcall(function()
+        if treeObj and type(treeObj.Damage) == "function" then
+            treeObj:Damage(bonus)
+            applied = 1
+        end
+    end)
+
+    local ms = 0
+    if getTimestampMs then pcall(function() ms = getTimestampMs() or 0 end) end
+    if not KnoxSystem.Power._lastTreeLogMs then KnoxSystem.Power._lastTreeLogMs = 0 end
+    if (ms - KnoxSystem.Power._lastTreeLogMs) >= 200 then
+        KnoxSystem.Power._lastTreeLogMs = ms
+        logPowerCombat({
+            reason = "tree_power",
+            powerLv = pow,
+            baseHit = baseHit,
+            bonusDamage = bonus,
+            applied = applied,
+            note = "Power tree bonus (best-effort; engine tree HP may ignore Lua)",
+        })
+    end
+end
+
 function KnoxSystem.Power.onPlayerUpdate(player)
     local data = KnoxSystem.getPlayerData(player)
     if data then KnoxSystem.Power.clampData(data) end
@@ -516,10 +733,10 @@ function KnoxSystem.Power.onGameStart(player)
             knockPerStr = KNOCK_PER_STR,
             staggerBand = STAGGER_BAND,
             ucwfPresent = ucwfPresent() and 1 or 0,
-            note = "Power: +1 carry/lv; dmg 10%*Power weapons; knock reroll +stagger13 if vanilla failed; no Strength hook",
+            note = "Power: +1 carry/lv; dmg 10%*Power weapons+thumpables; knock reroll +stagger13 if vanilla failed; no Strength hook",
             liveApplied = (pow > 0) and 1 or 0,
         })
     end
 end
 
-print("[KnoxSystem] KS_Power loaded (carry+1/lv, dmg 10%*Power, knock reroll, no Strength hook)")
+print("[KnoxSystem] KS_Power loaded (carry+1/lv, dmg 10%*Power melee+thump, knock reroll, no Strength hook)")
