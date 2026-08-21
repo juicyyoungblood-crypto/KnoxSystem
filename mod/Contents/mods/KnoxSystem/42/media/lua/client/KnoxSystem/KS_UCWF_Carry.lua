@@ -21,50 +21,42 @@ else
 end
 
 --- Fire weight recalculation when Power (or other carry drivers) change.
+local _ucwfRequireFailed = false
 local function recomputeCarryWeight_KnoxPower(character)
 	if gameMode == "SP" then
-		print(
-			"KnoxSystem_UCWF | recomputeCarryWeight_KnoxPower | Detected "
-				.. gameMode
-				.. " environment, recomputing carry weight directly"
-		)
 		local ok, err = pcall(function()
 			local fw = rawget(_G, "UnifiedCarryWeightFramework")
 				or rawget(_G, "UnitedCarryWeightFramework")
 				or rawget(_G, "UnitedCarryWeightFramework_Client")
 			if type(fw) ~= "table" then
-				-- Prefer already-loaded package; avoid WARN if missing
 				local loaded = package and package.loaded
 				if type(loaded) == "table" then
 					fw = loaded["UnifiedCarryWeightFramework"]
 						or loaded["shared/UnifiedCarryWeightFramework"]
 				end
 			end
-			if type(fw) ~= "table" then
+			if type(fw) ~= "table" and not _ucwfRequireFailed then
 				local okR, res = pcall(function() return require("UnifiedCarryWeightFramework") end)
-				if okR and type(res) == "table" then fw = res end
+				if okR and type(res) == "table" then
+					fw = res
+				else
+					_ucwfRequireFailed = true
+				end
 			end
 			if type(fw) == "table" and type(fw.recomputeAll) == "function" then
 				fw.recomputeAll()
-			else
-				print("KnoxSystem_UCWF | recomputeAll skipped (no framework table)")
 			end
 		end)
-		if not ok then
-			print("KnoxSystem_UCWF | recomputeAll error: " .. tostring(err))
+		if not ok and not KnoxSystem.UCWF._errOnce then
+			KnoxSystem.UCWF._errOnce = true
+			print("KnoxSystem_UCWF | recompute error: " .. tostring(err))
 		end
-		-- Layer Knox Power after UCWF base calc
 		if character and KnoxSystem and KnoxSystem.Power and KnoxSystem.Power.syncCarry then
 			pcall(function() KnoxSystem.Power.syncCarry(character) end)
 		elseif KnoxSystem and KnoxSystem.Power and KnoxSystem.Power.syncCarry and getPlayer then
 			pcall(function() KnoxSystem.Power.syncCarry(getPlayer()) end)
 		end
 	elseif gameMode == "MP_Client" then
-		print(
-			"KnoxSystem_UCWF | recomputeCarryWeight_KnoxPower | Detected "
-				.. gameMode
-				.. " environment, sending command to server to recalculate carry weight"
-		)
 		local player = character
 		if not player and getPlayer then player = getPlayer() end
 		if player and sendClientCommand then

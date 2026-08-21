@@ -446,13 +446,14 @@ local function ucwfRecompute(player, pow)
     return "server_skip"
 end
 
---- DIY carry via maxWeightBase (B42 BodyDamage each tick does):
----   setMaxWeight( (int)(getMaxWeightBase() * getWeightMod()) - injury ) * maxWeightDelta
---- Plain setMaxWeight is wiped every tick. setMaxWeightBonus does not exist on IsoGameCharacter.
---- There is NO setCapacity on player inv (hard cap 100 WARN).
+--- DIY carry — exact +1 final capacity per Power level.
+--- B42 BodyDamage each tick:
+---   setMaxWeight( (int)(getMaxWeightBase() * getWeightMod()) - injury )
+---   then * maxWeightDelta for IsoPlayer
+--- So we freeze vanilla maxWeightBase once, then set base so floor(base*wmod) lands on
+--- natural + Power, and also setMaxWeight(target) every tick for UI consistency.
 local CARRY_HARD_CAP = 100
 local CARRY_SANE_MAX = 50
-local INT_MAX_GUARD = 1000000
 
 local function clampNum(n, lo, hi, fallback)
     n = tonumber(n)
@@ -466,6 +467,7 @@ local function applyLayeredCarry(player, data, bonus)
     local method = "none"
     local before, after = -1, -1
     bonus = clampNum(bonus, 0, POWER_MAX * CARRY_PER_LEVEL, 0)
+    bonus = math.floor(bonus + 1e-6) -- whole pounds only
 
     local function readMax()
         local w = -1
@@ -484,158 +486,123 @@ local function applyLayeredCarry(player, data, bonus)
         pcall(function()
             if player.getWeightMod then m = tonumber(player:getWeightMod()) or 1 end
         end)
-        if m < 0.05 then m = 1 end
+        if not m or m < 0.05 then m = 1 end
         return m
     end
+    local function readDelta()
+        local d = 1
+        pcall(function()
+            if player.getMaxWeightDelta then d = tonumber(player:getMaxWeightDelta()) or 1 end
+        end)
+        if not d or d < 0.05 then d = 1 end
+        return d
+    end
 
-    -- One-time API probe
     if not KnoxSystem.Power._carryApiLogged then
         KnoxSystem.Power._carryApiLogged = true
-        local bits = {}
-        local function tcheck(name, obj)
-            local ok = false
-            pcall(function() ok = (type(obj) == "function") or (obj ~= nil) end)
-            bits[#bits + 1] = name .. "=" .. tostring(ok)
-        end
-        tcheck("getMaxWeight", player.getMaxWeight)
-        tcheck("setMaxWeight", player.setMaxWeight)
-        tcheck("getMaxWeightBase", player.getMaxWeightBase)
-        tcheck("setMaxWeightBase", player.setMaxWeightBase)
-        tcheck("getWeightMod", player.getWeightMod)
-        tcheck("getMaxWeightDelta", player.getMaxWeightDelta)
-        tcheck("setMaxWeightDelta", player.setMaxWeightDelta)
-        tcheck("setMaxWeightBonus", player.setMaxWeightBonus)
-        tcheck("getMaxWeightBonus", player.getMaxWeightBonus)
-        print("[KnoxSystem] Carry API probe: " .. table.concat(bits, " "))
         print(string.format(
-            "[KnoxSystem] Carry snapshot: max=%s base=%s wmod=%s",
-            tostring(readMax()), tostring(readBase()), tostring(readWeightMod())
+            "[KnoxSystem] Carry snapshot: max=%s base=%s wmod=%s delta=%s",
+            tostring(readMax()), tostring(readBase()), tostring(readWeightMod()), tostring(readDelta())
         ))
     end
 
     before = readMax()
-
-    -- Scrub INT_MAX / overflow from older bad builds
-    if before > CARRY_HARD_CAP or before > INT_MAX_GUARD then
-        method = "emergency_reset"
+    if before > CARRY_HARD_CAP then
+        -- scrub old overflow
         pcall(function()
-            if player.setMaxWeightBonus then player:setMaxWeightBonus(0) end
+            if player.setMaxWeightBase and data._knoxCarryOrigBase then
+                player:setMaxWeightBase(data._knoxCarryOrigBase)
+            end
+            if player.setMaxWeight then player:setMaxWeight(20) end
         end)
-        local rb = readBase()
-        if rb > CARRY_HARD_CAP or rb < 0 then
-            pcall(function()
-                if player.setMaxWeightBase then
-                    player:setMaxWeightBase(8 + (KnoxSystem.Power.getStrengthReal(player) or 0))
-                end
-            end)
-        end
-        data._knoxCarryBaseBoost = 0
+        data._knoxCarryBaseBoost = nil
         data._knoxPowerWeightBonus = 0
-        data._knoxPowerWeightAppliedOk = false
         before = readMax()
-        print("[KnoxSystem] Carry emergency scrub of insane maxWeight")
-    end
-
-    -- Remember vanilla-ish base once (or when boost is zero)
-    local curBase = readBase()
-    local prevBoost = clampNum(data._knoxCarryBaseBoost, 0, 30, 0)
-    if not data._knoxCarryOrigBase or data._knoxCarryOrigBase < 1 or data._knoxCarryOrigBase > CARRY_HARD_CAP then
-        -- Strip our previous boost if present
-        local orig = curBase
-        if prevBoost > 0 and curBase > prevBoost then
-            orig = curBase - prevBoost
-        end
-        data._knoxCarryOrigBase = clampNum(orig, 1, CARRY_HARD_CAP, 8)
+        method = "emergency_reset"
     end
 
     local wmod = readWeightMod()
-    -- final ≈ base * wmod  =>  to add +bonus to final, add bonus/wmod to base
-    local baseBoost = bonus / wmod
-    baseBoost = clampNum(baseBoost, 0, 30, 0)
-    -- Prefer integer-ish bases (engine casts to int on final)
-    -- Use tenth precision then let engine int the product
-    local newBase = data._knoxCarryOrigBase + baseBoost
+    local delta = readDelta()
+    local curBase = readBase()
+
+    -- Freeze original base ONLY while unboosted / first time
+    if not data._knoxCarryOrigBase or data._knoxCarryOrigBase < 1 then
+        data._knoxCarryOrigBase = clampNum(curBase > 0 and curBase or 8, 1, CARRY_HARD_CAP, 8)
+    end
+
+    -- Vanilla final capacity estimate (no Power), matching engine casts as closely as possible
+    -- maxWeight = (int)(base * wmod); then (int)(maxWeight * delta)
+    local function finalFromBase(base)
+        local m = math.floor(base * wmod + 1e-6)
+        if m < 0 then m = 0 end
+        m = math.floor(m * delta + 1e-6)
+        return m
+    end
+
+    local natural = finalFromBase(data._knoxCarryOrigBase)
+    if natural < 1 then
+        -- Fallback: current max minus last applied bonus
+        natural = math.max(1, math.floor((before > 0 and before or 20) - (tonumber(data._knoxPowerWeightBonus) or 0)))
+    end
+
+    local target = natural + bonus
+    target = clampNum(target, 1, CARRY_SANE_MAX, natural)
+
+    -- Invert: find base B such that finalFromBase(B) == target (search small window)
+    local newBase = data._knoxCarryOrigBase
+    if bonus > 0 then
+        -- Ideal continuous solution before floor: target/delta/wmod
+        local ideal = target / (delta * wmod)
+        newBase = ideal
+        -- Nudge until floor math hits target (or as close as possible)
+        local bestB, bestErr = ideal, 999
+        for step = -20, 20 do
+            local b = ideal + step * 0.01
+            if b < 1 then b = 1 end
+            local f = finalFromBase(b)
+            local err = math.abs(f - target)
+            if err < bestErr then
+                bestErr = err
+                bestB = b
+                if err == 0 then break end
+            end
+        end
+        newBase = bestB
+    end
     newBase = clampNum(newBase, 1, CARRY_HARD_CAP, data._knoxCarryOrigBase)
 
-    local baseOk = false
     pcall(function()
         if not player.setMaxWeightBase then return end
         player:setMaxWeightBase(newBase)
-        baseOk = true
         method = "setMaxWeightBase"
-        data._knoxCarryBaseBoost = baseBoost
     end)
 
-    -- Also force final max this frame (BodyDamage may already have run)
-    -- naturalEstimate from NEW base
-    local est = math.floor(newBase * wmod + 0.0001)
-    pcall(function()
-        if player.getMaxWeightDelta then
-            local d = tonumber(player:getMaxWeightDelta()) or 1
-            est = math.floor(est * d + 0.0001)
-        end
-    end)
-    est = clampNum(est, 1, CARRY_SANE_MAX, est)
-
-    local setOk = false
+    -- Force displayed/final max every tick (BodyDamage may have already run this frame)
     pcall(function()
         if not player.setMaxWeight then return end
-        player:setMaxWeight(est)
-        setOk = true
+        player:setMaxWeight(target)
         method = method == "none" and "setMaxWeight" or (method .. "+setMaxWeight")
     end)
 
     after = readMax()
 
-    -- If base set but final still old, engine hasn't re-run — setMaxWeight should have fixed after
-    local want = (before > 0 and before <= CARRY_HARD_CAP) and (before - (data._knoxPowerWeightBonus or 0) + bonus) or est
-    want = clampNum(want, 1, CARRY_SANE_MAX, est)
-
     if bonus <= 0 then
-        -- Restore original base
         pcall(function()
             if player.setMaxWeightBase and data._knoxCarryOrigBase then
                 player:setMaxWeightBase(data._knoxCarryOrigBase)
             end
         end)
-        data._knoxCarryBaseBoost = 0
         data._knoxPowerWeightBonus = 0
         data._knoxPowerWeightAppliedOk = true
         after = readMax()
-    elseif after > CARRY_HARD_CAP then
-        data._knoxPowerWeightBonus = 0
-        data._knoxPowerWeightAppliedOk = false
-        data._knoxCarryBaseBoost = 0
-        method = method .. "|OVERFLOW"
-        pcall(function()
-            if player.setMaxWeightBase and data._knoxCarryOrigBase then
-                player:setMaxWeightBase(data._knoxCarryOrigBase)
-            end
-        end)
-    elseif after >= 0 and before >= 0 and after >= before + math.max(0, bonus) - 0.6 then
+        method = method .. "|clear"
+    else
         data._knoxPowerWeightBonus = bonus
-        data._knoxPowerWeightAppliedOk = true
-    elseif baseOk or setOk then
-        -- Applied APIs but readback flat — still mark boost so we don't stack base forever
-        data._knoxPowerWeightBonus = bonus
-        data._knoxPowerWeightAppliedOk = (after > before + 0.1)
+        data._knoxPowerWeightAppliedOk = (after >= target - 0.1)
         if not data._knoxPowerWeightAppliedOk then
             method = method .. "|STUCK_READBACK"
-            if not KnoxSystem.Power._carryStuckLogged then
-                KnoxSystem.Power._carryStuckLogged = true
-                print(string.format(
-                    "[KnoxSystem] Carry applied but readback flat: before=%.1f after=%.1f base=%.2f->%.2f wmod=%.3f bonus=%.1f est=%d",
-                    before, after, data._knoxCarryOrigBase or -1, newBase, wmod, bonus, est
-                ))
-            end
         end
-    else
-        method = "none|NO_API"
-        data._knoxPowerWeightAppliedOk = false
-        if not KnoxSystem.Power._carryNoApiLogged then
-            KnoxSystem.Power._carryNoApiLogged = true
-            print("[KnoxSystem] Carry: no setMaxWeightBase/setMaxWeight callable on player")
-        end
+        method = method .. string.format("|nat=%d tgt=%d", natural, target)
     end
 
     return method, before, after

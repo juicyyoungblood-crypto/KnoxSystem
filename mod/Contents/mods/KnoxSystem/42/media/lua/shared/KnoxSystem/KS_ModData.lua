@@ -2,7 +2,7 @@
 -- Design SoT: /opt/data/workspace/pz-system-apocalypse/design/moddata_schema.yaml
 
 KnoxSystem = KnoxSystem or {}
-KnoxSystem.VERSION = "0.5.148"
+KnoxSystem.VERSION = "0.5.149"
 KnoxSystem.MOD_ID = "KnoxSystem"
 KnoxSystem.MODDATA_KEY = "KnoxSystem"
 KnoxSystem.SCHEMA_VERSION = 1
