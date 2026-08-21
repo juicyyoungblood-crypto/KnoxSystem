@@ -168,7 +168,10 @@ function KnoxSystem.Stats.applyAll(player, data)
     -- Power = carry +1/lv + flat 10% melee (no Strength hook / no damage mult)
     data._strMult = 1
     data._powerMult = 1
-    data._endMult = 1 + MAG * (data.stat_endurance or 0)
+    data._endMult = 1 + 0.06 * (tonumber(data.stat_endurance) or 0)
+    data._endPct = 0.06 * (tonumber(data.stat_endurance) or 0)
+    data._endLiveApplied = (tonumber(data.stat_endurance) or 0) > 0
+    data._endFloor = ((tonumber(data.stat_endurance) or 0) >= 10) and 0.12 or 0
     data._mindSpellMult = 1 + MAG * (data.stat_mind or 0)
     data._mindManaFlat = 5 * (data.stat_mind or 0)
     data._mindManaRegen = 0.05 * (data.stat_mind or 0)
@@ -255,13 +258,13 @@ function KnoxSystem.Stats.snapshotStamina(player)
     return {
         personalEndurance = personal,
         staminaMult = mult,
-        magPerLevel = MAG,
+        magPerLevel = 0.06,
         baseFitnessPerk = fitness ~= nil and fitness or -1,
-        enduranceBar = endu ~= nil and endu or -1,       -- current 0–max (vanilla usually 0–1)
-        enduranceMax = enduMax,                           -- pool max (vanilla Endurance stat max = 1.0)
-        endurancePct = enduPct,                           -- current as % of max
+        enduranceBar = endu ~= nil and endu or -1,
+        enduranceMax = enduMax,
+        endurancePct = enduPct,
         enduranceDelta = dEnd,
-        endurancePerSec = dPerSec, -- negative = draining
+        endurancePerSec = dPerSec,
         enduranceMoodle = moodle,
         fatigue = fat ~= nil and fat or -1,
         weight = w,
@@ -270,9 +273,12 @@ function KnoxSystem.Stats.snapshotStamina(player)
         sprinting = sprint,
         running = run,
         chargeActive = chg,
-        design = "outcome_mult_on_base_Fitness_effectiveness",
+        design = "stamina_delta_6pct_per_lv_L10_floor_0.12_enc_dmg_6pct",
         liveApplied = (data and data._endLiveApplied) and 1 or 0,
-        note = (data and data._endLiveApplied) and "live" or "moddata_only_not_vanilla_yet",
+        floorL10 = (data and data._endFloor) or 0,
+        note = (data and data._endLiveApplied)
+            and "Endurance LIVE: ±6%/lv stamina delta; L10 floor 0.12; over-enc dmg 6%/lv"
+            or "moddata_only_not_vanilla_yet",
     }
 end
 

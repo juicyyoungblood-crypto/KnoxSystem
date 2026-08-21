@@ -17,13 +17,13 @@ local STAT_KEYS = {
 -- Per-stat caps / SP cost (Power = effective Strength ranks)
 local STAT_MAX = {
     Power = 10,
-    Endurance = 20,
+    Endurance = 10,
     Mind = 20,
     Resilience = 20,
 }
 local STAT_COST = {
     Power = 2,
-    Endurance = 1,
+    Endurance = 2,
     Mind = 1,
     Resilience = 1,
 }

@@ -583,16 +583,37 @@ function KS_SystemTabView:refreshData()
             local pend = data.sp_cart_stats[statName] or 0
             row.label:setName(pend > 0 and string.format("%s: %d (+%d)", statName, cur, pend)
                 or string.format("%s: %d", statName, cur))
-            if statName == "Power" then
-                -- Show 2 SP/lv in label suffix when at 0 pending for clarity
-                local base = pend > 0 and string.format("Power: %d (+%d)", cur, pend) or string.format("Power: %d", cur)
+            if statName == "Power" or statName == "Endurance" then
+                local base = pend > 0 and string.format("%s: %d (+%d)", statName, cur, pend)
+                    or string.format("%s: %d", statName, cur)
                 row.label:setName(base .. " [2 SP]")
             end
             row.minus:setVisible(pend > 0)
-            local maxStat = (statName == "Power") and 10 or 20
-            local needSp = (statName == "Power") and 2 or 1
+            local maxStat = 20
+            local needSp = 1
+            pcall(function()
+                -- Prefer SP table (Power/Endurance = 10 max @ 2 SP)
+                if KnoxSystem.SP then
+                    -- statCostPending(1) gives cost for one level
+                    if statName == "Power" or statName == "Endurance" then
+                        maxStat = 10
+                        needSp = 2
+                    end
+                end
+            end)
+            if statName == "Power" or statName == "Endurance" then
+                maxStat = 10
+                needSp = 2
+            end
             local avail = KnoxSystem.SP.availableForStatsCart(data, player)
             row.plus:setVisible((avail >= needSp and cur + pend < maxStat) or pend > 0)
+            if row.plus then
+                if statName == "Endurance" then
+                    row.plus.tooltip = "Endurance (2 SP/lv, max 10)\n±6% stamina drain/regen per level\nL10: stamina floor 0.12 (never last winded moodle)\nOver-encumbered: −6% damage taken per level"
+                elseif statName == "Power" then
+                    row.plus.tooltip = "Power (2 SP/lv, max 10)\n+1 carry/lv · melee +10%/lv · knock reroll"
+                end
+            end
         end
     end
     for _, skName in ipairs(SYS_SKILL_ORDER) do

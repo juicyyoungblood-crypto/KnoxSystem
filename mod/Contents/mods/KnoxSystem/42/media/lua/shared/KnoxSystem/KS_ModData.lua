@@ -2,7 +2,7 @@
 -- Design SoT: /opt/data/workspace/pz-system-apocalypse/design/moddata_schema.yaml
 
 KnoxSystem = KnoxSystem or {}
-KnoxSystem.VERSION = "0.5.155"
+KnoxSystem.VERSION = "0.5.156"
 KnoxSystem.MOD_ID = "KnoxSystem"
 KnoxSystem.MODDATA_KEY = "KnoxSystem"
 KnoxSystem.SCHEMA_VERSION = 1
@@ -92,6 +92,10 @@ function KnoxSystem.getPlayerData(player)
         -- Soft clamp after refund (should already be ≤10)
         if data.stat_power > 10 then data.stat_power = 10 end
         data.stat_strength = data.stat_power
+        local e = tonumber(data.stat_endurance) or 0
+        if e < 0 then e = 0 end
+        if e > 10 then e = 10 end
+        data.stat_endurance = e
     end)
     return data
 end

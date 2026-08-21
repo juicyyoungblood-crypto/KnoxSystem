@@ -9,6 +9,7 @@ require "KnoxSystem/KS_SystemSkills"
 require "KnoxSystem/KS_BaseSkills"
 require "KnoxSystem/KS_Stats"
 require "KnoxSystem/KS_Power"
+require "KnoxSystem/KS_Endurance"
 require "KnoxSystem/KS_StrengthProbe"
 require "KnoxSystem/KS_Resilience"
 require "KnoxSystem/KS_DStorage"
@@ -112,6 +113,9 @@ local function onGameStart()
         if KnoxSystem.Power and KnoxSystem.Power.onGameStart then
             pcall(function() KnoxSystem.Power.onGameStart(player) end)
         end
+        if KnoxSystem.Endurance and KnoxSystem.Endurance.onGameStart then
+            pcall(function() KnoxSystem.Endurance.onGameStart(player) end)
+        end
         local d = KnoxSystem.getPlayerData(player)
         lastPL[0] = d and d.personal_level or 0
         -- Class pick is on System tab (Confirm) — no modal popup
@@ -157,6 +161,9 @@ local function onPlayerUpdate(player)
         end
         if KnoxSystem.Power and KnoxSystem.Power.onPlayerUpdate then
             KnoxSystem.Power.onPlayerUpdate(player)
+        end
+        if KnoxSystem.Endurance and KnoxSystem.Endurance.onPlayerUpdate then
+            KnoxSystem.Endurance.onPlayerUpdate(player)
         end
         if KnoxSystem.StrengthProbe and KnoxSystem.StrengthProbe.onPlayerUpdate then
             pcall(function() KnoxSystem.StrengthProbe.onPlayerUpdate(player) end)
@@ -425,6 +432,9 @@ local function onPlayerGetDamage(player, damageType, damage)
     pcall(function()
         if KnoxSystem.Resilience and KnoxSystem.Resilience.onPlayerGetDamage then
             KnoxSystem.Resilience.onPlayerGetDamage(player, damageType, damage)
+        end
+        if KnoxSystem.Endurance and KnoxSystem.Endurance.onPlayerGetDamage then
+            KnoxSystem.Endurance.onPlayerGetDamage(player, damageType, damage)
         end
     end)
 end
