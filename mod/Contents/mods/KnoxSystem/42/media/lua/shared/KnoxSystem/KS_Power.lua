@@ -129,11 +129,30 @@ local function ucwfModActive()
         if getActivatedMods then
             local mods = getActivatedMods()
             if mods and mods.contains then
+                -- Workshop id string variants
                 if mods:contains("UnifiedCarryWeightFramework") then ok = true end
                 if mods:contains("UCWF") then ok = true end
+                if mods:contains("Unified Carry Weight Framework") then ok = true end
+            end
+            -- Some builds expose as list
+            if not ok and mods and mods.size then
+                local n = mods:size()
+                for i = 0, n - 1 do
+                    local id = tostring(mods:get(i) or "")
+                    local low = id:lower()
+                    if low:find("unifiedcarry", 1, true) or low:find("ucwf", 1, true) then
+                        ok = true
+                        break
+                    end
+                end
             end
         end
     end)
+    if not ok then
+        pcall(function()
+            if type(rawget(_G, "UnifiedCarryWeightFramework")) == "table" then ok = true end
+        end)
+    end
     return ok
 end
 
@@ -310,61 +329,99 @@ local function ucwfRecompute(player, pow)
 end
 
 --- Layer Power bonus on top of current maxWeight (after UCWF recompute).
---- Tracks last applied so we don't stack forever.
+--- Only remembers prev bonus if getMaxWeight actually moved — otherwise prev poisons forever.
 local function applyLayeredCarry(player, data, bonus)
     local method = "none"
     local before, after = -1, -1
     local prev = tonumber(data._knoxPowerWeightBonus) or 0
+    if not data._knoxPowerWeightAppliedOk then
+        prev = 0 -- last apply didn't stick; don't subtract a phantom bonus
+    end
 
-    pcall(function()
-        if type(player.getMaxWeight) == "function" then
-            before = tonumber(player:getMaxWeight()) or -1
-        end
-    end)
+    local function readMax()
+        local w = -1
+        pcall(function()
+            if type(player.getMaxWeight) == "function" then
+                w = tonumber(player:getMaxWeight()) or -1
+            end
+        end)
+        return w
+    end
+    local function readBonus()
+        local b = 0
+        pcall(function()
+            if type(player.getMaxWeightBonus) == "function" then
+                b = tonumber(player:getMaxWeightBonus()) or 0
+            end
+        end)
+        return b
+    end
 
-    -- Prefer MaxWeightBonus (subtract our previous, add new)
-    local okBonus = false
+    before = readMax()
+    local target = before - prev + bonus
+    if target < bonus then target = (before > 0 and before or 8) - prev + bonus end
+    if target < 1 then target = 1 end
+
+    -- A) MaxWeightBonus
     pcall(function()
         if type(player.setMaxWeightBonus) ~= "function" then return end
-        local curBonus = 0
-        if type(player.getMaxWeightBonus) == "function" then
-            curBonus = tonumber(player:getMaxWeightBonus()) or 0
-        end
+        local curBonus = readBonus()
         local others = curBonus - prev
         if others < 0 then others = 0 end
         player:setMaxWeightBonus(others + bonus)
-        data._knoxPowerWeightBonus = bonus
-        okBonus = true
         method = "maxWeightBonus"
     end)
 
-    -- Absolute setMaxWeight relative to (current - prev Knox)
+    -- B) setMaxWeight
     pcall(function()
-        if type(player.setMaxWeight) ~= "function" or type(player.getMaxWeight) ~= "function" then return end
-        local cur = tonumber(player:getMaxWeight()) or 0
-        local base = cur - prev
-        if base < 1 then base = cur end
-        local target = base + bonus
-        -- If MaxWeightBonus already applied, cur may already include bonus — avoid double
-        if okBonus then
-            -- ensure total at least base_without_us + bonus by reading after bonus set
-            local now = tonumber(player:getMaxWeight()) or cur
-            if bonus > 0 and now < (before - prev + bonus) - 0.05 then
-                player:setMaxWeight(before - prev + bonus)
-                method = method .. "+setMaxWeight"
-            end
-        else
+        if type(player.setMaxWeight) == "function" then
             player:setMaxWeight(target)
-            data._knoxPowerWeightBonus = bonus
-            method = "setMaxWeight"
+            method = method == "none" and "setMaxWeight" or (method .. "+setMaxWeight")
         end
     end)
 
+    -- C) setMaxWeightBase (some B42 builds)
     pcall(function()
-        if type(player.getMaxWeight) == "function" then
-            after = tonumber(player:getMaxWeight()) or -1
+        if type(player.setMaxWeightBase) == "function" then
+            player:setMaxWeightBase(target)
+            method = method .. "+setMaxWeightBase"
         end
     end)
+
+    -- D) inventory capacity (UI sometimes reads this)
+    pcall(function()
+        local inv = player.getInventory and player:getInventory()
+        if inv and type(inv.setCapacity) == "function" then
+            inv:setCapacity(target)
+            method = method .. "+invCapacity"
+        elseif inv and type(inv.setMaxWeight) == "function" then
+            inv:setMaxWeight(target)
+            method = method .. "+invMaxWeight"
+        end
+    end)
+
+    after = readMax()
+    local stuck = (bonus > 0 and after >= 0 and before >= 0 and (after < target - 0.05))
+    if bonus <= 0 then
+        data._knoxPowerWeightBonus = 0
+        data._knoxPowerWeightAppliedOk = true
+    elseif not stuck and after >= 0 then
+        data._knoxPowerWeightBonus = bonus
+        data._knoxPowerWeightAppliedOk = true
+    else
+        -- Did not stick — clear poison prev; log failure
+        data._knoxPowerWeightBonus = 0
+        data._knoxPowerWeightAppliedOk = false
+        method = method .. "|STUCK"
+        if not KnoxSystem.Power._carryStuckLogged then
+            KnoxSystem.Power._carryStuckLogged = true
+            print(string.format(
+                "[KnoxSystem] Carry STUCK: before=%.2f after=%.2f target=%.2f bonus=%.2f methods=%s (B42 may ignore setMaxWeight; need UCWF register)",
+                before, after, target, bonus, method
+            ))
+        end
+    end
+
     return method, before, after
 end
 
@@ -867,7 +924,7 @@ function KnoxSystem.Power.onGameStart(player)
             knockPerPower = KNOCK_PER_POWER,
             knockPerStr = KNOCK_PER_STR,
             staggerBand = STAGGER_BAND,
-            ucwfPresent = ucwfPresent() and 1 or 0,
+            ucwfPresent = ucwfModActive() and 1 or 0,
             note = "Power: +1 carry/lv; dmg 10%*Power weapons+thumpables; knock reroll +stagger13 if vanilla failed; no Strength hook",
             liveApplied = (pow > 0) and 1 or 0,
         })

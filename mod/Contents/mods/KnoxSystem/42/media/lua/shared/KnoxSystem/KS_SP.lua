@@ -293,11 +293,10 @@ function KnoxSystem.SP.confirmStats(player)
     if KnoxSystem.Stats and KnoxSystem.Stats.applyAll then
         KnoxSystem.Stats.applyAll(player, data)
     end
-    if KnoxSystem.Power and KnoxSystem.Power.onGameStart then
-        pcall(function() KnoxSystem.Power.onGameStart(player) end)
-    end
     if KnoxSystem.Power and KnoxSystem.Power.onPowerChanged then
         pcall(function() KnoxSystem.Power.onPowerChanged(player) end)
+    elseif KnoxSystem.Power and KnoxSystem.Power.syncCarry then
+        pcall(function() KnoxSystem.Power.syncCarry(player) end)
     end
     if KnoxSystem.UCWF and KnoxSystem.UCWF.recomputeCarryWeight_KnoxPower then
         pcall(function() KnoxSystem.UCWF.recomputeCarryWeight_KnoxPower(player) end)
