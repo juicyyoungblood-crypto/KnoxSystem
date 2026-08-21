@@ -30,11 +30,24 @@ local function recomputeCarryWeight_KnoxPower(character)
 		)
 		local ok, err = pcall(function()
 			local fw = rawget(_G, "UnifiedCarryWeightFramework")
+				or rawget(_G, "UnitedCarryWeightFramework")
+				or rawget(_G, "UnitedCarryWeightFramework_Client")
 			if type(fw) ~= "table" then
-				fw = require("UnifiedCarryWeightFramework")
+				-- Prefer already-loaded package; avoid WARN if missing
+				local loaded = package and package.loaded
+				if type(loaded) == "table" then
+					fw = loaded["UnifiedCarryWeightFramework"]
+						or loaded["shared/UnifiedCarryWeightFramework"]
+				end
+			end
+			if type(fw) ~= "table" then
+				local okR, res = pcall(function() return require("UnifiedCarryWeightFramework") end)
+				if okR and type(res) == "table" then fw = res end
 			end
 			if type(fw) == "table" and type(fw.recomputeAll) == "function" then
 				fw.recomputeAll()
+			else
+				print("KnoxSystem_UCWF | recomputeAll skipped (no framework table)")
 			end
 		end)
 		if not ok then
