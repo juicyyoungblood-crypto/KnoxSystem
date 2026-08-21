@@ -211,7 +211,7 @@ function KnoxSystem.Stats.snapshotPower(player)
         effectiveStrengthPerk = basePerk, -- no Strength hook
         design = "carry_plus_melee_bonus",
         liveApplied = (personal > 0) and 1 or 0,
-        note = "Power: +1 carry/lv + flat 10% melee; no getPerkLevel Strength hook; max10 @ 2SP",
+        note = "Power: +1 carry/lv; dmg 10%*Power weapons; knock reroll if vanilla failed; no Strength hook; max10 @ 2SP",
     }
 end
 

@@ -75,7 +75,7 @@ local function strSnap(player)
         powerLv = pow,
         carryBonus = pow * 1.0,
         meleeBonusOn = (pow >= 1) and 1 or 0,
-        noteDesign = "Power=carry+1/lv +10% melee; no Strength hook",
+        noteDesign = "Power=carry+1/lv; dmg 10%*Power; knock reroll +13 stagger",
     }
 end
 

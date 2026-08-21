@@ -1,6 +1,6 @@
 name=Knox System
 id=KnoxSystem
-description=System apocalypse / LitRPG layer for Build 42. Personal Level, stats, classes, World Rank. Power: +1 carry/level (+ UCWF if loaded) and flat +10% melee. MVP: Warrior + world tiers.
+description=System apocalypse / LitRPG layer for Build 42. Power: +1 carry/level, melee +10%/Power level, knock/stagger reroll on failed control. MVP: Warrior + world tiers.
 author=Knox System
-modversion=0.5.136
+modversion=0.5.137
 versionMin=42.0

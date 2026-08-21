@@ -1,16 +1,21 @@
 -- Personal Power (System tab only, max 10 @ 2 SP)
--- Design ≥0.5.136:
+-- Design ≥0.5.137:
 --   NO getPerkLevel(Strength) hook
 --   Carry: +1 max weight per Power level (UCWF if present, else MaxWeightBonus)
---   Melee: flat +10% of hit damage to zombie HP if Power≥1 (not bare hands/shove)
+--   Melee dmg: +10% of hit * PowerLv (weapons only, not ranged/shove)
+--   Knock/stagger reroll if vanilla failed: chance = 2*Power + 0.4*Str; stagger band +13
 require "KnoxSystem/KS_ModData"
 require "KnoxSystem/KS_TrackLog"
 
 KnoxSystem.Power = KnoxSystem.Power or {}
 
 local POWER_MAX = 10
-local CARRY_PER_LEVEL = 1.0          -- +1 lb/kg unit per Power rank
-local MELEE_BONUS_FRAC = 0.10        -- flat 10% if Power ≥ 1
+local CARRY_PER_LEVEL = 1.0          -- +1 weight unit per Power rank
+local MELEE_BONUS_PER_LEVEL = 0.10   -- +10% of hit damage per Power level (weapons only)
+local KNOCK_PER_POWER = 2.0          -- knockChance += 2 * PowerLv
+local KNOCK_PER_STR = 0.4            -- knockChance += Str * 0.4
+local STAGGER_BAND = 13              -- stagger window above KD (vanilla~25; half for reroll)
+
 local UCWF_MOD_ID = "UCWF"           -- Workshop: Unified Carry Weight Framework
 local UCWF_KEY = "KnoxSystem_Power"  -- unique modifier id for UCWF
 
@@ -287,9 +292,14 @@ function KnoxSystem.Power.syncCarry(player)
     end
 end
 
--- -------- Melee +10% (Power ≥ 1, not bare hands) --------
+-- -------- Combat: damage (weapons) + knock/stagger reroll (weapons + failed shove) --------
+-- Damage: +10% of hit damage * PowerLv (not bare hands, not ranged)
+-- Knock: only if vanilla did NOT already stagger/knock this hit ("failed" control)
+--   knockChance = 2*Power + 0.4*Strength
+--   stagger if roll in [knockChance, knockChance+13)
 function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
     if not attacker or not target then return end
+
     local isP, isZ = false, false
     pcall(function()
         if instanceof and instanceof(attacker, "IsoPlayer") then isP = true end
@@ -313,7 +323,13 @@ function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
     end)
     if not alive then return end
 
-    -- Skip shove / bare hands
+    -- Ranged: no Power damage / knock
+    local ranged = false
+    pcall(function()
+        if weapon and weapon.isRanged and weapon:isRanged() then ranged = true end
+    end)
+    if ranged then return end
+
     local bare = false
     pcall(function()
         if weapon and weapon.isBareHands and weapon:isBareHands() then bare = true end
@@ -321,48 +337,97 @@ function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
             local ft = string.lower(tostring(weapon:getFullType() or ""))
             if ft:find("barehands", 1, true) then bare = true end
         end
+        if not weapon then bare = true end -- nil weapon ≈ shove/unarmed
     end)
-    if bare then return end
 
     local dmg = tonumber(damage) or 0
-    if dmg <= 0 then return end
-    local bonus = dmg * MELEE_BONUS_FRAC
-    if bonus <= 0 then return end
-
+    local bonus = 0
     local hpBefore, hpAfter = -1, -1
+
+    -- 1) Damage bonus: weapons only, scales 10% per Power level
+    if (not bare) and dmg > 0 then
+        bonus = dmg * MELEE_BONUS_PER_LEVEL * pow
+        if bonus > 0 then
+            pcall(function()
+                if target.getHealth then hpBefore = tonumber(target:getHealth()) or -1 end
+                local nh = hpBefore - bonus
+                if nh < 0 then nh = 0 end
+                if target.setHealth then target:setHealth(nh) end
+                if target.getHealth then hpAfter = tonumber(target:getHealth()) or nh end
+            end)
+        end
+    end
+
+    -- 2) Compensated knock/stagger reroll if vanilla control failed this hit
+    local alreadyStagger, alreadyDown = false, false
     pcall(function()
-        if target.getHealth then hpBefore = tonumber(target:getHealth()) or -1 end
-        local nh = hpBefore - bonus
-        if nh < 0 then nh = 0 end
-        if target.setHealth then target:setHealth(nh) end
-        if target.getHealth then hpAfter = tonumber(target:getHealth()) or nh end
+        if target.isStaggerBack and target:isStaggerBack() then alreadyStagger = true end
+    end)
+    pcall(function()
+        if target.isKnockedDown and target:isKnockedDown() then alreadyDown = true end
     end)
 
-    -- Throttle combat spam (~4 hits/sec max log)
+    local didKnock, didStagger = 0, 0
+    local knockChance, staggerChance, roll = -1, -1, -1
+    local strReal = KnoxSystem.Power.getStrengthReal(attacker)
+
+    if (not alreadyStagger) and (not alreadyDown) then
+        knockChance = (KNOCK_PER_POWER * pow) + (KNOCK_PER_STR * strReal)
+        staggerChance = knockChance + STAGGER_BAND
+        pcall(function()
+            if ZombRand then
+                roll = ZombRand(100) -- typically 0..99
+            else
+                roll = math.floor(math.random() * 100)
+            end
+        end)
+        if type(roll) ~= "number" then roll = 0 end
+
+        if roll < knockChance then
+            local ok = pcall(function()
+                if target.setKnockedDown then target:setKnockedDown(true) end
+            end)
+            if ok then didKnock = 1 end
+        elseif roll < staggerChance then
+            local ok = pcall(function()
+                if target.setStaggerBack then target:setStaggerBack(true) end
+            end)
+            if ok then didStagger = 1 end
+        end
+    end
+
+    -- Logging (throttled)
     local ms = 0
     if getTimestampMs then pcall(function() ms = getTimestampMs() or 0 end) end
     if not KnoxSystem.Power._lastMeleeLogMs then KnoxSystem.Power._lastMeleeLogMs = 0 end
     if (ms - KnoxSystem.Power._lastMeleeLogMs) >= 250 then
         KnoxSystem.Power._lastMeleeLogMs = ms
+        local fields = {
+            reason = bare and "shove_control" or "melee_power",
+            powerLv = pow,
+            strengthReal = strReal,
+            bareHands = bare and 1 or 0,
+            hitDamage = dmg,
+            bonusPerLevel = MELEE_BONUS_PER_LEVEL,
+            bonusDamage = bonus,
+            hpBefore = hpBefore,
+            hpAfter = hpAfter,
+            alreadyStagger = alreadyStagger and 1 or 0,
+            alreadyDown = alreadyDown and 1 or 0,
+            knockChance = knockChance,
+            staggerChance = staggerChance,
+            staggerBand = STAGGER_BAND,
+            roll = roll,
+            didKnock = didKnock,
+            didStagger = didStagger,
+            note = "dmg=10%*Power weapons; knock reroll if vanilla failed; stagger band +13",
+        }
         if KnoxSystem.Track and KnoxSystem.Track.isChannelOn("strength_apply") then
-            KnoxSystem.Track.log("strength_apply", "melee_bonus", {
-                reason = "melee_bonus",
-                powerLv = pow,
-                hitDamage = dmg,
-                bonusFrac = MELEE_BONUS_FRAC,
-                bonusDamage = bonus,
-                hpBefore = hpBefore,
-                hpAfter = hpAfter,
-                note = "flat 10% bonus if Power>=1; not bare hands",
-            })
+            KnoxSystem.Track.log("strength_apply", fields.reason, fields)
         elseif KnoxSystem.Track and KnoxSystem.Track.isChannelOn("damage") then
-            KnoxSystem.Track.log("damage", "power_melee_bonus", {
-                reason = "melee_bonus",
-                powerLv = pow,
-                hitDamage = dmg,
-                bonusDamage = bonus,
-                hpAfter = hpAfter,
-            })
+            KnoxSystem.Track.log("damage", "power_hit", fields)
+        elseif KnoxSystem.Track and KnoxSystem.Track.isChannelOn("power") then
+            KnoxSystem.Track.log("power", "hit", fields)
         end
     end
 end
@@ -385,12 +450,15 @@ function KnoxSystem.Power.onGameStart(player)
             powerLv = pow,
             strengthReal = real,
             carryPerLevel = CARRY_PER_LEVEL,
-            meleeBonusFrac = MELEE_BONUS_FRAC,
+            meleeBonusPerLevel = MELEE_BONUS_PER_LEVEL,
+            knockPerPower = KNOCK_PER_POWER,
+            knockPerStr = KNOCK_PER_STR,
+            staggerBand = STAGGER_BAND,
             ucwfPresent = ucwfPresent() and 1 or 0,
-            note = "Power=carry+1/lv + flat 10% melee; NO Strength getPerkLevel hook",
+            note = "Power: +1 carry/lv; dmg 10%*Power weapons; knock reroll +stagger13 if vanilla failed; no Strength hook",
             liveApplied = (pow > 0) and 1 or 0,
         })
     end
 end
 
-print("[KnoxSystem] KS_Power loaded (carry+1/lv, melee+10%, no Strength hook)")
+print("[KnoxSystem] KS_Power loaded (carry+1/lv, dmg 10%*Power, knock reroll, no Strength hook)")
