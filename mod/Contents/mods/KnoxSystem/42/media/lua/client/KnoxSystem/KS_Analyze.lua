@@ -5,7 +5,7 @@ require "KnoxSystem/KS_ModData"
 require "KnoxSystem/KS_SystemSkills"
 
 KnoxSystem.Analyze = KnoxSystem.Analyze or {}
-KnoxSystem.Analyze.PLATE_REV = 19
+KnoxSystem.Analyze.PLATE_REV = 20
 
 KnoxSystem.Analyze.MOD_LABELS = {
     tough_skin = "Thick Skin",
@@ -31,7 +31,9 @@ local MAX_DIST = 14.0
 -- Only treat as "engine faded" when alpha is in (0, MIN) — NOT when alpha is 0
 -- (many zombies report getAlpha=0 while fully drawn → was hiding almost all plates)
 local MIN_ALPHA = 0.15
-local DMG_LIFE_MS = 1400
+local DMG_LIFE_MS = 1500          -- damage float lifetime (also post-death hold)
+local DMG_DEATH_HOLD_MS = 1500    -- keep dmg plate this long after zombie leaves list / dies
+local DMG_DISPLAY_SCALE = 100     -- engine HP float → display (0.3 → 30, 2.0 → 200)
 local LINE_H = 14
 local HEAD_OFF_PX = 158
 local POS_SAMPLE_MS = 250
@@ -431,8 +433,10 @@ function KnoxSystem.Analyze.onDamageDealt(attacker, target, damage, meta)
     end
     local dmg = num(damage, 0)
     if dmg <= 0 then return end
-    -- One decimal; meta optional (eventDamage, powerBonus, hpDelta) for future tooltip/debug
-    upsertPlate(target, vis, string.format("%.1f", dmg))
+    -- Display scale: engine float HP → “standard” HP numbers (×100, whole number)
+    local shown = math.floor(dmg * DMG_DISPLAY_SCALE + 0.5)
+    if shown < 1 and dmg > 0 then shown = 1 end
+    upsertPlate(target, vis, tostring(shown))
 end
 
 function KnoxSystem.Analyze.onPlayerUpdate(player)
@@ -465,6 +469,8 @@ function KnoxSystem.Analyze.onPlayerUpdate(player)
                 local prevDmg = plates[key] and plates[key].dmg or nil
                 local prevBorn = plates[key] and plates[key].dmgBorn or nil
                 upsertPlate(z, vis, nil)
+                -- Clear corpse-hold once zombie is visible again
+                if plates[key] then plates[key].goneAt = nil end
                 if prevDmg and prevBorn and (t - prevBorn) <= DMG_LIFE_MS then
                     plates[key].dmg = prevDmg
                     plates[key].dmgBorn = prevBorn
@@ -473,18 +479,44 @@ function KnoxSystem.Analyze.onPlayerUpdate(player)
                     plates[key].mods = nil
                     plates[key].dmg = nil
                 end
+                -- If zombie just died but still in list, freeze death timer for dmg hold
+                pcall(function()
+                    if z.isDead and z:isDead() and plates[key] and plates[key].dmg then
+                        if not plates[key].goneAt then plates[key].goneAt = t end
+                    end
+                end)
             end
         end
     end
     for key, p in pairs(plates) do
-        if not seenNow[key] then
-            -- Short grace so one bad canSee tick doesn't wipe plates (hit-flash only bug)
-            if p and p.seen and (t - p.seen) > 250 then
+        if not p then
+            plates[key] = nil
+        elseif not seenNow[key] then
+            -- Keep damage plate after death / despawn for DMG_DEATH_HOLD_MS
+            local dmgAlive = p.dmg and p.dmgBorn and (t - p.dmgBorn) <= math.max(DMG_LIFE_MS, DMG_DEATH_HOLD_MS)
+            if dmgAlive then
+                if not p.goneAt then p.goneAt = t end
+                -- Strip live chrome; leave last world pos + dmg float
+                p.hp = nil
+                p.mods = nil
+                p.elite = nil
+                p.z = nil -- freeze plateWorldPos on last zx/zy/zz
+                if (t - p.goneAt) > DMG_DEATH_HOLD_MS then
+                    plates[key] = nil
+                end
+            elseif p.seen and (t - p.seen) > 250 then
                 plates[key] = nil
             end
-        elseif p and p.dmgBorn and (t - p.dmgBorn) > DMG_LIFE_MS then
-            p.dmg = nil
-            p.dmgBorn = nil
+        else
+            if p.dmgBorn and (t - p.dmgBorn) > DMG_LIFE_MS then
+                -- Still allow death-hold window if marked gone/dead
+                if p.goneAt and (t - p.goneAt) <= DMG_DEATH_HOLD_MS then
+                    -- keep dmg
+                else
+                    p.dmg = nil
+                    p.dmgBorn = nil
+                end
+            end
         end
     end
 end
@@ -663,11 +695,23 @@ function KnoxSystem.Analyze.drawPlates()
                         drawText(p.hp, sx, y, hr, hg, hb, a)
                         y = y - LINE_H
                     end
-                    if l2 and p.dmg and p.dmgBorn and (t - p.dmgBorn) <= DMG_LIFE_MS then
-                        local fade = 1 - ((t - p.dmgBorn) / DMG_LIFE_MS)
-                        if fade < 0 then fade = 0 end
-                        drawText(p.dmg, sx, y, 1.0, 0.85, 0.2, a * fade)
-                        y = y - LINE_H
+                    if l2 and p.dmg and p.dmgBorn then
+                        local age = t - p.dmgBorn
+                        local holdOk = age <= DMG_LIFE_MS
+                        if p.goneAt and (t - p.goneAt) <= DMG_DEATH_HOLD_MS then
+                            holdOk = true
+                        end
+                        if holdOk then
+                            local life = DMG_LIFE_MS
+                            if p.goneAt then
+                                life = math.max(life, DMG_DEATH_HOLD_MS)
+                            end
+                            local fade = 1 - (age / life)
+                            if fade < 0.15 then fade = 0.15 end
+                            if fade > 1 then fade = 1 end
+                            drawText(p.dmg, sx, y, 1.0, 0.85, 0.2, a * fade)
+                            y = y - LINE_H
+                        end
                     end
                     if p.elite then
                         drawText(p.elite, sx, y, 1.0, 0.82, 0.15, a)

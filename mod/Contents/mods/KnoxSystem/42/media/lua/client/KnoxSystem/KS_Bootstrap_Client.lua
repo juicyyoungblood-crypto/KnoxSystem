@@ -289,13 +289,14 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
             hpDeltaDuringHooks = hpDelta,
             hpMax = hpMax,
             plateShown = shown,
+            plateDisplay = math.floor((tonumber(shown) or 0) * 100 + 0.5),
             platePick = pick,
             weapon = wpnName,
             weaponMaxDamage = wpnDmg,
             bareHands = bare,
             ranged = ranged,
-            note = "PZ zombie HP is a small float (~0.5–3 full), NOT 150. Plate uses same units as getHealth()/event damage.",
-            noteScale = "If you expect '150 HP' RP numbers: multiply plate by ~50–100 for rough fantasy scale only — game does not use that.",
+            note = "Plate display = round(engineDamage * 100). PZ HP is small float; ×100 is fantasy-scale UI only.",
+            noteScale = "Example: event 0.30 → plate 30; event 2.0 → plate 200.",
         }
         if KnoxSystem.Track.isChannelOn("damage") then
             KnoxSystem.Track.log("damage", "hit_breakdown", fields)
