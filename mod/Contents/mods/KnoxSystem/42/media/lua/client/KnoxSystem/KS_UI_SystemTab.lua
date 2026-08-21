@@ -584,34 +584,59 @@ function KS_SystemTabView:refreshData()
             row.label:setName(pend > 0 and string.format("%s: %d (+%d)", statName, cur, pend)
                 or string.format("%s: %d", statName, cur))
             if statName == "Power" or statName == "Endurance" then
+                local cost = 2
+                if statName == "Power" and KnoxSystem.Sandbox and KnoxSystem.Sandbox.spCostPower then
+                    cost = KnoxSystem.Sandbox.spCostPower()
+                elseif statName == "Endurance" and KnoxSystem.Sandbox and KnoxSystem.Sandbox.spCostEndurance then
+                    cost = KnoxSystem.Sandbox.spCostEndurance()
+                end
                 local base = pend > 0 and string.format("%s: %d (+%d)", statName, cur, pend)
                     or string.format("%s: %d", statName, cur)
-                row.label:setName(base .. " [2 SP]")
+                row.label:setName(base .. string.format(" [%d SP]", cost))
             end
             row.minus:setVisible(pend > 0)
             local maxStat = 20
             local needSp = 1
-            pcall(function()
-                -- Prefer SP table (Power/Endurance = 10 max @ 2 SP)
-                if KnoxSystem.SP then
-                    -- statCostPending(1) gives cost for one level
-                    if statName == "Power" or statName == "Endurance" then
-                        maxStat = 10
-                        needSp = 2
-                    end
-                end
-            end)
             if statName == "Power" or statName == "Endurance" then
                 maxStat = 10
                 needSp = 2
+                if statName == "Power" and KnoxSystem.Sandbox and KnoxSystem.Sandbox.spCostPower then
+                    needSp = KnoxSystem.Sandbox.spCostPower()
+                elseif statName == "Endurance" and KnoxSystem.Sandbox and KnoxSystem.Sandbox.spCostEndurance then
+                    needSp = KnoxSystem.Sandbox.spCostEndurance()
+                end
             end
             local avail = KnoxSystem.SP.availableForStatsCart(data, player)
             row.plus:setVisible((avail >= needSp and cur + pend < maxStat) or pend > 0)
             if row.plus then
                 if statName == "Endurance" then
-                    row.plus.tooltip = "Endurance (2 SP/lv, max 10)\n±6% stamina drain/regen per level\nL10: stamina floor 0.12 (never last winded moodle)\nOver-encumbered: −6% damage taken per level"
+                    local sp = needSp
+                    local stam = 6
+                    local enc = 6
+                    pcall(function()
+                        if KnoxSystem.Sandbox then
+                            stam = KnoxSystem.Sandbox.getValue("EnduranceStaminaPercentPerLevel") or stam
+                            enc = KnoxSystem.Sandbox.getValue("EnduranceEncumbranceDamagePercentPerLevel") or enc
+                        end
+                    end)
+                    row.plus.tooltip = string.format(
+                        "Endurance (%d SP/lv, max 10)\n±%d%% stamina drain/regen per level\nL10: stamina floor 0.12\nOver-encumbered: −%d%% damage taken per level",
+                        sp, stam, enc
+                    )
                 elseif statName == "Power" then
-                    row.plus.tooltip = "Power (2 SP/lv, max 10)\n+1 carry/lv · melee +10%/lv · knock reroll"
+                    local sp = needSp
+                    local dmg = 10
+                    local knock = 2
+                    pcall(function()
+                        if KnoxSystem.Sandbox then
+                            dmg = KnoxSystem.Sandbox.getValue("PowerDamagePercentPerLevel") or dmg
+                            knock = KnoxSystem.Sandbox.getValue("PowerKnockPointsPerLevel") or knock
+                        end
+                    end)
+                    row.plus.tooltip = string.format(
+                        "Power (%d SP/lv, max 10)\n+%d%% melee damage per level\n+%d knockdown points per level\n+1 carry/lv · knock reroll",
+                        sp, dmg, knock
+                    )
                 end
             end
         end

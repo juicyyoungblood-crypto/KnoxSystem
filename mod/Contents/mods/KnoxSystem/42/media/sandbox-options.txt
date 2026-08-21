@@ -1,0 +1,79 @@
+VERSION = 1,
+
+option KnoxSystem.PowerDamagePercentPerLevel
+{
+	type = integer,
+	min = 1,
+	max = 100,
+	default = 10,
+	page = KnoxSystem,
+	translation = KnoxSystem_PowerDamagePercentPerLevel,
+}
+
+option KnoxSystem.PowerKnockPointsPerLevel
+{
+	type = integer,
+	min = 0,
+	max = 10,
+	default = 2,
+	page = KnoxSystem,
+	translation = KnoxSystem_PowerKnockPointsPerLevel,
+}
+
+option KnoxSystem.EnduranceStaminaPercentPerLevel
+{
+	type = integer,
+	min = 1,
+	max = 20,
+	default = 6,
+	page = KnoxSystem,
+	translation = KnoxSystem_EnduranceStaminaPercentPerLevel,
+}
+
+option KnoxSystem.EnduranceEncumbranceDamagePercentPerLevel
+{
+	type = integer,
+	min = 0,
+	max = 20,
+	default = 6,
+	page = KnoxSystem,
+	translation = KnoxSystem_EnduranceEncumbranceDamagePercentPerLevel,
+}
+
+option KnoxSystem.SpCostPower
+{
+	type = integer,
+	min = 1,
+	max = 5,
+	default = 2,
+	page = KnoxSystem,
+	translation = KnoxSystem_SpCostPower,
+}
+
+option KnoxSystem.SpCostEndurance
+{
+	type = integer,
+	min = 1,
+	max = 5,
+	default = 2,
+	page = KnoxSystem,
+	translation = KnoxSystem_SpCostEndurance,
+}
+
+option KnoxSystem.PersonalXpPercent
+{
+	type = integer,
+	min = 10,
+	max = 200,
+	default = 50,
+	page = KnoxSystem,
+	translation = KnoxSystem_PersonalXpPercent,
+}
+
+option KnoxSystem.AllowSprintersIfVanillaOff
+{
+	type = boolean,
+	default = true,
+	page = KnoxSystem,
+	translation = KnoxSystem_AllowSprintersIfVanillaOff,
+}

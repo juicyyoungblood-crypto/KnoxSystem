@@ -5,6 +5,7 @@ require "KnoxSystem/KS_ModData"
 require "KnoxSystem/KS_WorldRank"
 require "KnoxSystem/KS_Config"
 require "KnoxSystem/KS_TrackLog"
+require "KnoxSystem/KS_Sandbox"
 
 KnoxSystem.WorldZombies = KnoxSystem.WorldZombies or {}
 
@@ -567,6 +568,13 @@ function KnoxSystem.WorldZombies.stamp(zombie, reason)
         if elite then sprintChance = sprintChance + ELITE_EXTRA.sprinter end
         if sprintChance > 0.85 then sprintChance = 0.85 end
         local doSprint = (not isCrawler(zombie)) and (randFloat(0, 1) < sprintChance)
+        -- Respect sandbox: if vanilla sprinters off and Knox opt unchecked, never stamp sprinters
+        if doSprint and KnoxSystem.Sandbox and KnoxSystem.Sandbox.knoxMayStampSprinters then
+            if not KnoxSystem.Sandbox.knoxMayStampSprinters() then
+                doSprint = false
+                sprintChance = 0
+            end
+        end
 
         local hpInfo = applyHealth(zombie, kit, elite)
         local spdInfo = applySpeedPackage(zombie, kit, elite, doSprint)

@@ -8,6 +8,7 @@ require "KnoxSystem/KS_SP"
 require "KnoxSystem/KS_SystemSkills"
 require "KnoxSystem/KS_BaseSkills"
 require "KnoxSystem/KS_Stats"
+require "KnoxSystem/KS_Sandbox"
 require "KnoxSystem/KS_Power"
 require "KnoxSystem/KS_Endurance"
 require "KnoxSystem/KS_StrengthProbe"
@@ -47,6 +48,9 @@ end
 
 local function onGameStart()
     print(string.format("[KnoxSystem] client game start v%s (Phase 4.1 System class Confirm)", KnoxSystem.VERSION))
+    if KnoxSystem.Sandbox and KnoxSystem.Sandbox.refresh then
+        pcall(function() KnoxSystem.Sandbox.refresh() end)
+    end
     if KnoxSystem.Track and KnoxSystem.Track.clear then
         KnoxSystem.Track.clear()
     end

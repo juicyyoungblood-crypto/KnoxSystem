@@ -8,14 +8,28 @@
 --   (heal back after the hit / continuous tick).
 require "KnoxSystem/KS_ModData"
 require "KnoxSystem/KS_TrackLog"
+require "KnoxSystem/KS_Sandbox"
 
 KnoxSystem.Endurance = KnoxSystem.Endurance or {}
 
 local ENDURANCE_MAX = 10
-local PCT_PER_LEVEL = 0.06       -- 6% per level
-local FLOOR_L10 = 0.12          -- above final Winded band (~0.10)
-local EPS = 0.00005             -- ignore float noise
+local FLOOR_L10 = 0.12          -- above final Winded band (~0.10) — not sandboxed yet
+local EPS = 0.00005
 local LOG_MS = 4000
+
+local function staminaPctPerLevel()
+    if KnoxSystem.Sandbox and KnoxSystem.Sandbox.enduranceStaminaPctPerLevel then
+        return KnoxSystem.Sandbox.enduranceStaminaPctPerLevel()
+    end
+    return 0.06
+end
+
+local function encDmgPctPerLevel()
+    if KnoxSystem.Sandbox and KnoxSystem.Sandbox.enduranceEncumbranceDmgPctPerLevel then
+        return KnoxSystem.Sandbox.enduranceEncumbranceDmgPctPerLevel()
+    end
+    return 0.06
+end
 
 local lastEndu = {}             -- playerNum → last observed endurance 0–1
 local lastLogMs = {}
@@ -52,7 +66,11 @@ function KnoxSystem.Endurance.level(player)
 end
 
 function KnoxSystem.Endurance.pct(player)
-    return KnoxSystem.Endurance.level(player) * PCT_PER_LEVEL
+    return KnoxSystem.Endurance.level(player) * staminaPctPerLevel()
+end
+
+function KnoxSystem.Endurance.encDmgPct(player)
+    return KnoxSystem.Endurance.level(player) * encDmgPctPerLevel()
 end
 
 function KnoxSystem.Endurance.clampData(data)
@@ -236,7 +254,7 @@ function KnoxSystem.Endurance.onPlayerUpdate(player)
     KnoxSystem.Endurance.clampData(data)
 
     local lv = KnoxSystem.Endurance.level(player)
-    local pct = lv * PCT_PER_LEVEL
+    local pct = lv * staminaPctPerLevel()
     local cur = getEndurance(player)
     if cur == nil then return end
 
@@ -313,7 +331,7 @@ function KnoxSystem.Endurance.onPlayerUpdate(player)
             KnoxSystem.Track.log("stamina", "endurance_live", {
                 reason = kind,
                 enduranceLv = lv,
-                pctPerLevel = PCT_PER_LEVEL,
+                pctPerLevel = staminaPctPerLevel(),
                 totalPct = pct,
                 prev = prev,
                 raw = cur,
@@ -349,7 +367,7 @@ function KnoxSystem.Endurance.onPlayerGetDamage(player, damageType, damage)
         return
     end
 
-    local pct = lv * PCT_PER_LEVEL
+    local pct = lv * encDmgPctPerLevel()
     local refund = dmg * pct
     if refund <= 0 then return end
 

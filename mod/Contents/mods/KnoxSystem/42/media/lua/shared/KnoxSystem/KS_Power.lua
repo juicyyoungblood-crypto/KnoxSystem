@@ -7,15 +7,28 @@
 --   Knock/stagger reroll if vanilla failed: chance = 2*Power + 0.4*Str; stagger band +13
 require "KnoxSystem/KS_ModData"
 require "KnoxSystem/KS_TrackLog"
+require "KnoxSystem/KS_Sandbox"
 
 KnoxSystem.Power = KnoxSystem.Power or {}
 
 local POWER_MAX = 10
-local CARRY_PER_LEVEL = 1.0          -- +1 weight unit per Power rank
-local MELEE_BONUS_PER_LEVEL = 0.10   -- +10% of hit damage per Power level (weapons only)
-local KNOCK_PER_POWER = 2.0          -- knockChance += 2 * PowerLv
-local KNOCK_PER_STR = 0.4            -- knockChance += Str * 0.4
-local STAGGER_BAND = 13              -- stagger window above KD (vanilla~25; half for reroll)
+local CARRY_PER_LEVEL = 1.0          -- +1 weight unit per Power rank (not sandboxed yet — ask before adding option)
+local STAGGER_BAND = 13              -- not sandboxed yet
+local KNOCK_PER_STR = 0.4            -- not sandboxed yet
+
+local function meleeBonusPerLevel()
+    if KnoxSystem.Sandbox and KnoxSystem.Sandbox.powerMeleeBonusPerLevel then
+        return KnoxSystem.Sandbox.powerMeleeBonusPerLevel()
+    end
+    return 0.10
+end
+
+local function knockPerPower()
+    if KnoxSystem.Sandbox and KnoxSystem.Sandbox.powerKnockPointsPerLevel then
+        return KnoxSystem.Sandbox.powerKnockPointsPerLevel()
+    end
+    return 2.0
+end
 
 local UCWF_MOD_ID = "UnifiedCarryWeightFramework"
 local UCWF_KEY = "KnoxSystem_Power"
@@ -803,7 +816,7 @@ function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
 
     -- 1) Damage bonus: weapons only (not shove / bare)
     if (not bare) and (not shove) and dmg > 0 then
-        bonus = dmg * MELEE_BONUS_PER_LEVEL * pow
+        bonus = dmg * meleeBonusPerLevel() * pow
         if bonus > 0 then
             pcall(function()
                 if target.getHealth then hpBefore = tonumber(target:getHealth()) or -1 end
@@ -827,7 +840,7 @@ function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
     if not vanillaControlled then
         rerollAttempted = 1
         rerollOutcome = "miss" -- default until roll decides
-        knockChance = (KNOCK_PER_POWER * pow) + (KNOCK_PER_STR * strReal)
+        knockChance = (knockPerPower() * pow) + (KNOCK_PER_STR * strReal)
         staggerChance = knockChance + STAGGER_BAND
         pcall(function()
             if ZombRand then
@@ -896,7 +909,7 @@ function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
             strengthReal = strReal,
             bareHands = bare and 1 or 0,
             hitDamage = dmg,
-            bonusPerLevel = MELEE_BONUS_PER_LEVEL,
+            bonusPerLevel = meleeBonusPerLevel(),
             bonusDamage = bonus,
             hpBefore = hpBefore,
             hpAfter = hpAfter,
@@ -983,7 +996,7 @@ function KnoxSystem.Power.onWeaponHitThumpable(attacker, weapon, thumpable, dama
     end
     if baseHit <= 0 then baseHit = 1 end -- minimal tick so Power still matters on odd weapons
 
-    local bonus = baseHit * MELEE_BONUS_PER_LEVEL * pow
+    local bonus = baseHit * meleeBonusPerLevel() * pow
     if bonus <= 0 then return end
 
     local name = "?"
@@ -1075,7 +1088,7 @@ function KnoxSystem.Power.onWeaponHitThumpable(attacker, weapon, thumpable, dama
             powerLv = pow,
             object = name,
             baseHit = baseHit,
-            bonusPerLevel = MELEE_BONUS_PER_LEVEL,
+            bonusPerLevel = meleeBonusPerLevel(),
             bonusDamage = bonus,
             hpBefore = hpBefore,
             hpAfter = hpAfter,
@@ -1109,7 +1122,7 @@ function KnoxSystem.Power.onWeaponHitTree(attacker, weapon, ...)
         end)
     end
     if baseHit <= 0 then baseHit = 1 end
-    local bonus = baseHit * MELEE_BONUS_PER_LEVEL * pow
+    local bonus = baseHit * meleeBonusPerLevel() * pow
 
     -- Optional: first extra arg might be square/tree object on some builds
     local treeObj = select(1, ...)
@@ -1155,8 +1168,8 @@ function KnoxSystem.Power.onGameStart(player)
             powerLv = pow,
             strengthReal = real,
             carryPerLevel = CARRY_PER_LEVEL,
-            meleeBonusPerLevel = MELEE_BONUS_PER_LEVEL,
-            knockPerPower = KNOCK_PER_POWER,
+            meleeBonusPerLevel = meleeBonusPerLevel(),
+            knockPerPower = knockPerPower(),
             knockPerStr = KNOCK_PER_STR,
             staggerBand = STAGGER_BAND,
             ucwfPresent = ucwfModActive() and 1 or 0,

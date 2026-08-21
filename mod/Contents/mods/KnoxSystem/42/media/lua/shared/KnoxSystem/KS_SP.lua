@@ -3,6 +3,7 @@ require "KnoxSystem/KS_ModData"
 require "KnoxSystem/KS_Config"
 require "KnoxSystem/KS_Level"
 require "KnoxSystem/KS_SystemSkills"
+require "KnoxSystem/KS_Sandbox"
 
 KnoxSystem.SP = KnoxSystem.SP or {}
 
@@ -14,14 +15,14 @@ local STAT_KEYS = {
     Resilience = "stat_resilience",
 }
 
--- Per-stat caps / SP cost (Power = effective Strength ranks)
+-- Per-stat caps (SP cost for Power/Endurance from sandbox)
 local STAT_MAX = {
     Power = 10,
     Endurance = 10,
     Mind = 20,
     Resilience = 20,
 }
-local STAT_COST = {
+local STAT_COST_DEFAULT = {
     Power = 2,
     Endurance = 2,
     Mind = 1,
@@ -33,7 +34,19 @@ local function statMax(statName)
 end
 
 local function statCostPerLevel(statName)
-    return STAT_COST[statName] or 1
+    if statName == "Power" or statName == "Strength" then
+        if KnoxSystem.Sandbox and KnoxSystem.Sandbox.spCostPower then
+            return KnoxSystem.Sandbox.spCostPower()
+        end
+        return STAT_COST_DEFAULT.Power
+    end
+    if statName == "Endurance" then
+        if KnoxSystem.Sandbox and KnoxSystem.Sandbox.spCostEndurance then
+            return KnoxSystem.Sandbox.spCostEndurance()
+        end
+        return STAT_COST_DEFAULT.Endurance
+    end
+    return STAT_COST_DEFAULT[statName] or 1
 end
 
 function KnoxSystem.SP.statField(statName)

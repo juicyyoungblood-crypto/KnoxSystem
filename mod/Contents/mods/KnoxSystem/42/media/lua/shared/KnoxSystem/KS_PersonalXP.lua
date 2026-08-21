@@ -2,6 +2,7 @@
 require "KnoxSystem/KS_ModData"
 require "KnoxSystem/KS_Config"
 require "KnoxSystem/KS_Level"
+require "KnoxSystem/KS_Sandbox"
 
 KnoxSystem.PersonalXP = KnoxSystem.PersonalXP or {}
 
@@ -71,14 +72,18 @@ function KnoxSystem.PersonalXP.onAddXP(character, perk, amount)
 
     local key = KnoxSystem.PersonalXP.perkKey(perk)
     local weight = KnoxSystem.Config.getWeightForPerkKey(key)
-    local personal = amount * weight
+    local scale = 1.0
+    if KnoxSystem.Sandbox and KnoxSystem.Sandbox.personalXpScale then
+        scale = KnoxSystem.Sandbox.personalXpScale()
+    end
+    local personal = amount * weight * scale
     if personal == 0 then
         return
     end
 
     local pl = character
     if not instanceof or instanceof(character, "IsoPlayer") then
-        KnoxSystem.PersonalXP.addPersonalXp(pl, personal, string.format("skill:%s x%.2f", key, weight))
+        KnoxSystem.PersonalXP.addPersonalXp(pl, personal, string.format("skill:%s x%.2f xpScale=%.2f", key, weight, scale))
     end
 end
 

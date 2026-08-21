@@ -1,6 +1,7 @@
 -- KnoxSystem Personal Stat effects + TrackLog snapshots (Strength / Endurance-Stamina)
 require "KnoxSystem/KS_ModData"
 require "KnoxSystem/KS_TrackLog"
+require "KnoxSystem/KS_Sandbox"
 
 KnoxSystem.Stats = KnoxSystem.Stats or {}
 
@@ -168,10 +169,15 @@ function KnoxSystem.Stats.applyAll(player, data)
     -- Power = carry +1/lv + flat 10% melee (no Strength hook / no damage mult)
     data._strMult = 1
     data._powerMult = 1
-    data._endMult = 1 + 0.06 * (tonumber(data.stat_endurance) or 0)
-    data._endPct = 0.06 * (tonumber(data.stat_endurance) or 0)
-    data._endLiveApplied = (tonumber(data.stat_endurance) or 0) > 0
-    data._endFloor = ((tonumber(data.stat_endurance) or 0) >= 10) and 0.12 or 0
+    local endLv = tonumber(data.stat_endurance) or 0
+    local endPct = 0.06
+    if KnoxSystem.Sandbox and KnoxSystem.Sandbox.enduranceStaminaPctPerLevel then
+        endPct = KnoxSystem.Sandbox.enduranceStaminaPctPerLevel()
+    end
+    data._endMult = 1 + endPct * endLv
+    data._endPct = endPct * endLv
+    data._endLiveApplied = endLv > 0
+    data._endFloor = (endLv >= 10) and 0.12 or 0
     data._mindSpellMult = 1 + MAG * (data.stat_mind or 0)
     data._mindManaFlat = 5 * (data.stat_mind or 0)
     data._mindManaRegen = 0.05 * (data.stat_mind or 0)
