@@ -956,32 +956,68 @@ local function fitWindowToSystem(window)
     end)
 end
 
-local function tryPatchCharacterInfoWindow()
+local tryPatchExistingInstance
+local tryPatchCharacterInfoWindow
+
+tryPatchExistingInstance = function()
     pcall(function()
-        require "ISUI/ISCharacterInfoWindow"
-        if not ISCharacterInfoWindow then return end
-        -- 3.21: plain shell (no withRaw on whole window — that risked System tab)
-        if ISCharacterInfoWindow._knoxPatchVer == "3.21" then return end
-        ISCharacterInfoWindow._knoxPatchVer = "3.21"
+        if ISCharacterInfoWindow and ISCharacterInfoWindow.instance then
+            ensureSystemTab(ISCharacterInfoWindow.instance)
+            softBlueWindow(ISCharacterInfoWindow.instance)
+        end
+        if getPlayerData then
+            local pd = getPlayerData(0)
+            if pd then
+                for _, key in ipairs({ "characterInfo", "infoWindow" }) do
+                    if pd[key] then
+                        ensureSystemTab(pd[key])
+                        softBlueWindow(pd[key])
+                    end
+                end
+            end
+        end
+    end)
+end
+
+tryPatchCharacterInfoWindow = function()
+    local ok, err = pcall(function()
+        -- Prefer global if already loaded (boot require path often fails in B42)
+        if not ISCharacterInfoWindow then
+            pcall(function() require "ISUI/ISCharacterInfoWindow" end)
+        end
+        if not ISCharacterInfoWindow then
+            print("[KnoxSystem] Character info patch deferred: ISCharacterInfoWindow not loaded yet")
+            return
+        end
+        -- 3.22: force re-apply; no varargs in wrappers (Kahlua-safe); always retry existing instance
+        if ISCharacterInfoWindow._knoxPatchVer == "3.22" then
+            tryPatchExistingInstance()
+            return
+        end
+        ISCharacterInfoWindow._knoxPatchVer = "3.22"
         ISCharacterInfoWindow._knoxSystemTabPatched = true
 
         local oldCreate = ISCharacterInfoWindow.createChildren
-        ISCharacterInfoWindow.createChildren = function(self, ...)
-            if oldCreate then oldCreate(self, ...) end
+        ISCharacterInfoWindow.createChildren = function(self)
+            if oldCreate then
+                oldCreate(self)
+            end
             pcall(function()
                 ensureSystemTab(self)
                 softBlueWindow(self)
                 local panel = self.panel
-                if panel and panel.activateView and not panel._knoxAct321 then
-                    panel._knoxAct321 = true
+                if panel and panel.activateView and not panel._knoxAct322 then
+                    panel._knoxAct322 = true
                     local oldAct = panel.activateView
                     panel.activateView = function(pself, name)
                         local result = oldAct(pself, name)
-                        local n = tostring(name or ""):lower()
-                        softBlueWindow(self)
-                        if n:find("system", 1, true) then
-                            fitWindowToSystem(self)
-                        end
+                        pcall(function()
+                            softBlueWindow(self)
+                            local n = tostring(name or ""):lower()
+                            if n:find("system", 1, true) then
+                                fitWindowToSystem(self)
+                            end
+                        end)
                         return result
                     end
                 end
@@ -993,8 +1029,8 @@ local function tryPatchCharacterInfoWindow()
 
         local oldUpdate = ISCharacterInfoWindow.update
         if oldUpdate then
-            ISCharacterInfoWindow.update = function(self, ...)
-                oldUpdate(self, ...)
+            ISCharacterInfoWindow.update = function(self)
+                oldUpdate(self)
                 pcall(function()
                     if self.knoxSystemView then
                         local p = getSpecificPlayer and getSpecificPlayer(self.playerNum or 0) or getPlayer()
@@ -1008,9 +1044,9 @@ local function tryPatchCharacterInfoWindow()
                                 fitWindowToSystem(self)
                             end
                         end
-                    elseif (self._knoxRetry or 0) < 30 then
+                    elseif (self._knoxRetry or 0) < 40 then
                         self._knoxRetry = (self._knoxRetry or 0) + 1
-                        if self._knoxRetry == 2 or self._knoxRetry == 8 or self._knoxRetry == 18 then
+                        if self._knoxRetry == 1 or self._knoxRetry == 5 or self._knoxRetry == 15 or self._knoxRetry == 30 then
                             ensureSystemTab(self)
                             softBlueWindow(self)
                         end
@@ -1021,32 +1057,27 @@ local function tryPatchCharacterInfoWindow()
         end
 
         local oldPre = ISCharacterInfoWindow.prerender
-        ISCharacterInfoWindow.prerender = function(self, ...)
-            softBlueWindow(self)
-            if oldPre then oldPre(self, ...) end
-        end
-
-        print("[KnoxSystem] Character info patch 3.21 (System tab + blue chrome; no window withRaw)")
-    end)
-end
-
-local function tryPatchExistingInstance()
-    pcall(function()
-        if ISCharacterInfoWindow and ISCharacterInfoWindow.instance then
-            ensureSystemTab(ISCharacterInfoWindow.instance)
-        end
-        if getPlayerData then
-            local pd = getPlayerData(0)
-            if pd then
-                for _, key in ipairs({ "characterInfo", "infoWindow" }) do
-                    if pd[key] then ensureSystemTab(pd[key]) end
-                end
+        if oldPre then
+            ISCharacterInfoWindow.prerender = function(self)
+                pcall(function() softBlueWindow(self) end)
+                oldPre(self)
+            end
+        else
+            ISCharacterInfoWindow.prerender = function(self)
+                pcall(function() softBlueWindow(self) end)
             end
         end
+
+        print("[KnoxSystem] Character info patch 3.22 (System tab + blue chrome; Kahlua-safe wrappers)")
+        tryPatchExistingInstance()
     end)
+    if not ok then
+        print("[KnoxSystem] Character info patch ERROR: " .. tostring(err))
+    end
 end
 
 function KnoxSystem.UI.focusSystemTab()
+    tryPatchCharacterInfoWindow()
     tryPatchExistingInstance()
     local win = ISCharacterInfoWindow and ISCharacterInfoWindow.instance
     if not win and getPlayerData then
@@ -1059,6 +1090,7 @@ function KnoxSystem.UI.focusSystemTab()
             if win.bringToTop then win:bringToTop() end
         end)
         ensureSystemTab(win)
+        softBlueWindow(win)
         local tabPanel = win.knoxTabPanel or findTabPanel(win)
         if tabPanel and tabPanel.activateView then
             pcall(function() tabPanel:activateView(SYSTEM_TAB_TITLE) end)
@@ -1073,4 +1105,4 @@ KnoxSystem.UI._patchCharacterInfo = tryPatchCharacterInfoWindow
 KnoxSystem.UI._patchExisting = tryPatchExistingInstance
 KnoxSystem.UI._ensureSystemTab = ensureSystemTab
 
-print("[KnoxSystem] KS_UI_SystemTab 3.21 loaded (class skill tooltips + Charge 4.4)")
+print("[KnoxSystem] KS_UI_SystemTab 3.22 loaded (class skill tooltips + Charge 4.4)")

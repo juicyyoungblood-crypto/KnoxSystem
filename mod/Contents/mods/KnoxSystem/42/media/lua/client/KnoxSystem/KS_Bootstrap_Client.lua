@@ -84,6 +84,9 @@ local function onGameStart()
     if KnoxSystem.UI._patchCharacterInfo then
         KnoxSystem.UI._patchCharacterInfo()
     end
+    if KnoxSystem.UI._patchExisting then
+        pcall(function() KnoxSystem.UI._patchExisting() end)
+    end
     if KnoxSystem.UI._patchInventoryTheme then
         KnoxSystem.UI._patchInventoryTheme()
     end
@@ -121,6 +124,10 @@ end
 local function onCreatePlayer(_, player)
     if not player then return end
     KnoxSystem.ensurePlayerInitialized(player, "new_game")
+    pcall(function()
+        if KnoxSystem.UI._patchCharacterInfo then KnoxSystem.UI._patchCharacterInfo() end
+        if KnoxSystem.UI._patchExisting then KnoxSystem.UI._patchExisting() end
+    end)
 end
 
 local function onPlayerDeath(player)
@@ -271,6 +278,8 @@ Events.OnGameBoot.Add(function()
         pcall(function() KnoxSystem.StrengthProbe.boot() end)
     end
 end)
+-- Re-patch after UI classes exist / player created (boot require often fails early)
+-- (OnGameStart + OnCreatePlayer already call _patchCharacterInfo / _patchExisting)
 if Events.OnPlayerDeath then
     Events.OnPlayerDeath.Add(onPlayerDeath)
 end
