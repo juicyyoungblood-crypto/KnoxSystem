@@ -20,6 +20,7 @@ local LOG_MS = 4000
 local lastEndu = {}             -- playerNum → last observed endurance 0–1
 local lastLogMs = {}
 local lastEncLogMs = {}
+local lastLoggedKind = {}
 
 local function nowMs()
     local t = 0
@@ -295,8 +296,20 @@ function KnoxSystem.Endurance.onPlayerUpdate(player)
     local t = nowMs()
     if lv > 0 and (kind ~= "none" or floored) and KnoxSystem.Track and KnoxSystem.Track.isChannelOn("stamina") then
         local last = lastLogMs[id] or 0
-        if t - last >= LOG_MS then
+        local prevKind = lastLoggedKind[id]
+        -- Always log when kind flips (e.g. drain → regen) so boost is visible; else 4s throttle
+        local kindFlip = (prevKind ~= nil and prevKind ~= kind)
+        if kindFlip or (t - last >= LOG_MS) then
             lastLogMs[id] = t
+            lastLoggedKind[id] = kind
+            local gainExtra = 0
+            local lossRefund = 0
+            if kind == "regen_boost" or (kind and tostring(kind):find("regen", 1, true)) then
+                gainExtra = (delta > 0) and (delta * pct) or 0
+            end
+            if kind == "drain_refund" or (kind and tostring(kind):find("drain", 1, true)) then
+                lossRefund = (delta < 0) and ((-delta) * pct) or 0
+            end
             KnoxSystem.Track.log("stamina", "endurance_live", {
                 reason = kind,
                 enduranceLv = lv,
@@ -305,11 +318,13 @@ function KnoxSystem.Endurance.onPlayerUpdate(player)
                 prev = prev,
                 raw = cur,
                 delta = delta,
+                lossRefund = lossRefund,
+                gainExtra = gainExtra,
                 adjusted = adjusted,
                 wrote = wrote and 1 or 0,
                 floorL10 = floored and 1 or 0,
                 floorValue = FLOOR_L10,
-                note = "Endurance live: ±6%/lv on stamina delta; L10 floor 0.12",
+                note = "Endurance live: drain refunds 6%/lv of loss; regen adds 6%/lv of gain; L10 floor 0.12",
             })
         end
     end
