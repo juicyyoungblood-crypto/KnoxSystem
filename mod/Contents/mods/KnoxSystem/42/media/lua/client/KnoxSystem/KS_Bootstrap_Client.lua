@@ -188,9 +188,20 @@ local function onPlayerUpdate(player)
     end)
 end
 
--- Melee damage → Melee Proficiency XP (best-effort hook)
+-- Melee damage → Melee Proficiency XP + Analyze plate (total damage)
 local function onWeaponHitCharacter(attacker, target, weapon, damage)
     if not attacker or not target then return end
+
+    -- Snapshot HP before our hooks (engine may already have applied vanilla hit)
+    local hpBefore = nil
+    pcall(function()
+        if target.getHealth then hpBefore = tonumber(target:getHealth()) end
+    end)
+    if KnoxSystem.Power then
+        KnoxSystem.Power._lastHitBonusDamage = 0
+        KnoxSystem.Power._lastHitEventDamage = tonumber(damage) or 0
+    end
+
     pcall(function()
         if KnoxSystem.Warrior and KnoxSystem.Warrior.Charge and KnoxSystem.Warrior.Charge.onWeaponHit then
             KnoxSystem.Warrior.Charge.onWeaponHit(attacker, target)
@@ -206,13 +217,47 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
             KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
         end
     end)
+
+    local hpAfter = hpBefore
+    pcall(function()
+        if target.getHealth then hpAfter = tonumber(target:getHealth()) end
+    end)
+
+    -- Display total: max(HP lost during our hooks + event dmg if needed, event + Power bonus)
+    local eventDmg = tonumber(damage) or 0
+    local powerBonus = 0
+    if KnoxSystem.Power then
+        powerBonus = tonumber(KnoxSystem.Power._lastHitBonusDamage) or 0
+    end
+    local hpDelta = 0
+    if hpBefore ~= nil and hpAfter ~= nil then
+        hpDelta = hpBefore - hpAfter
+        if hpDelta < 0 then hpDelta = 0 end
+    end
+    -- If engine already applied event damage before this callback, hpDelta ≈ powerBonus only.
+    -- Prefer event+bonus so plate matches full hit; use larger of the two.
+    local sumParts = eventDmg + powerBonus
+    local shown = sumParts
+    if hpDelta > shown then shown = hpDelta end
+    -- If we saw a clear post-hook HP drop and event looks like pre-apply, combine
+    if hpDelta > 0.001 and eventDmg > 0 and hpDelta + 0.05 < eventDmg then
+        -- unusual: delta smaller than event alone — stick with sumParts
+        shown = sumParts
+    end
+
     pcall(function()
         if not instanceof(attacker, "IsoPlayer") then return end
         if not instanceof(target, "IsoZombie") then return end
         if weapon and weapon.isRanged and weapon:isRanged() then return end
         KnoxSystem.Warrior.Melee.onDealtDamage(attacker, target, damage or 1, weapon)
         if KnoxSystem.Analyze and KnoxSystem.Analyze.onDamageDealt then
-            KnoxSystem.Analyze.onDamageDealt(attacker, target, damage or 1)
+            KnoxSystem.Analyze.onDamageDealt(attacker, target, shown, {
+                eventDamage = eventDmg,
+                powerBonus = powerBonus,
+                hpDelta = hpDelta,
+                hpBefore = hpBefore,
+                hpAfter = hpAfter,
+            })
         end
         if KnoxSystem.ZombieObserve and KnoxSystem.ZombieObserve.onMeleeHit then
             KnoxSystem.ZombieObserve.onMeleeHit(attacker, target, damage or 1)
@@ -234,6 +279,7 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
             })
         end
     end)
+end
 end
 
 local function onPlayerGetDamage(player, damageType, damage)

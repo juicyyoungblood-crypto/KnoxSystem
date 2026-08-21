@@ -764,6 +764,9 @@ function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
             end)
         end
     end
+    -- Expose for Analyze plate (event dmg + this bonus)
+    KnoxSystem.Power._lastHitBonusDamage = bonus or 0
+    KnoxSystem.Power._lastHitEventDamage = dmg
 
     -- 2) Compensated knock/stagger reroll if vanilla control failed this hit
     local strReal = KnoxSystem.Power.getStrengthReal(attacker)

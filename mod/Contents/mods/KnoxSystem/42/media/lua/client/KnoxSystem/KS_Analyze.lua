@@ -5,7 +5,7 @@ require "KnoxSystem/KS_ModData"
 require "KnoxSystem/KS_SystemSkills"
 
 KnoxSystem.Analyze = KnoxSystem.Analyze or {}
-KnoxSystem.Analyze.PLATE_REV = 18
+KnoxSystem.Analyze.PLATE_REV = 19
 
 KnoxSystem.Analyze.MOD_LABELS = {
     tough_skin = "Thick Skin",
@@ -421,7 +421,7 @@ local function upsertPlate(z, vis, dmgText)
     end
 end
 
-function KnoxSystem.Analyze.onDamageDealt(attacker, target, damage)
+function KnoxSystem.Analyze.onDamageDealt(attacker, target, damage, meta)
     local player = attacker
     if not player or not KnoxSystem.Analyze.hasL2(player) then return end
     local ok, vis = KnoxSystem.Analyze.canSeeTarget(player, target)
@@ -431,6 +431,7 @@ function KnoxSystem.Analyze.onDamageDealt(attacker, target, damage)
     end
     local dmg = num(damage, 0)
     if dmg <= 0 then return end
+    -- One decimal; meta optional (eventDamage, powerBonus, hpDelta) for future tooltip/debug
     upsertPlate(target, vis, string.format("%.1f", dmg))
 end
 
