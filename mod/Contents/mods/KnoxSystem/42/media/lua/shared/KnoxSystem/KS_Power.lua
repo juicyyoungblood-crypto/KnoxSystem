@@ -388,14 +388,29 @@ local function ucwfRecompute(player, pow)
     return "server_skip"
 end
 
---- Layer Power bonus on top of current maxWeight (after UCWF recompute).
---- Only remembers prev bonus if getMaxWeight actually moved — otherwise prev poisons forever.
+--- Layer Power as MaxWeightBonus only (never touch ItemContainer.setCapacity — B42 hard-caps at 100 and WARNs).
+--- Never write absurd values (guards against INT_MAX pollution).
+local CARRY_HARD_CAP = 100   -- B42 engine container max (see setCapacity WARN)
+local CARRY_SANE_MAX = 40    -- Power DIY should never push past this alone
+local INT_MAX_GUARD = 1000000
+
+local function clampNum(n, lo, hi, fallback)
+    n = tonumber(n)
+    if n == nil or n ~= n then return fallback end -- nil or NaN
+    if n < lo then return lo end
+    if n > hi then return hi end
+    return n
+end
+
 local function applyLayeredCarry(player, data, bonus)
     local method = "none"
     local before, after = -1, -1
+    bonus = clampNum(bonus, 0, POWER_MAX * CARRY_PER_LEVEL, 0)
+
     local prev = tonumber(data._knoxPowerWeightBonus) or 0
+    prev = clampNum(prev, 0, POWER_MAX * CARRY_PER_LEVEL, 0)
     if not data._knoxPowerWeightAppliedOk then
-        prev = 0 -- last apply didn't stick; don't subtract a phantom bonus
+        prev = 0
     end
 
     local function readMax()
@@ -414,70 +429,99 @@ local function applyLayeredCarry(player, data, bonus)
                 b = tonumber(player:getMaxWeightBonus()) or 0
             end
         end)
+        -- Reject poisoned INT_MAX-style bonuses
+        if b > CARRY_HARD_CAP or b < -1 or b ~= b then b = 0 end
         return b
     end
 
     before = readMax()
-    local target = before - prev + bonus
-    if target < bonus then target = (before > 0 and before or 8) - prev + bonus end
-    if target < 1 then target = 1 end
 
-    -- A) MaxWeightBonus
+    -- Emergency: previous bad write left INT_MAX / huge weight — scrub bonus first
+    if before > CARRY_HARD_CAP or before > INT_MAX_GUARD or before < 0 then
+        method = "emergency_reset"
+        pcall(function()
+            if type(player.setMaxWeightBonus) == "function" then
+                player:setMaxWeightBonus(0)
+            end
+        end)
+        pcall(function()
+            -- Reasonable vanilla-ish floor (Str10 ~20); do not use poisoned before
+            local reset = clampNum(8 + (KnoxSystem.Power.getStrengthReal(player) or 5) + bonus, 1, CARRY_HARD_CAP, 12)
+            if type(player.setMaxWeight) == "function" then
+                player:setMaxWeight(reset)
+            end
+        end)
+        data._knoxPowerWeightBonus = 0
+        data._knoxPowerWeightAppliedOk = false
+        before = readMax()
+        if not KnoxSystem.Power._carryOverflowLogged then
+            KnoxSystem.Power._carryOverflowLogged = true
+            print(string.format(
+                "[KnoxSystem] Carry emergency reset (was insane maxWeight=%.0f); bonus cleared",
+                before
+            ))
+        end
+    end
+
+    -- Only MaxWeightBonus path for DIY (no setCapacity, no setMaxWeightBase spam)
+    local curBonus = readBonus()
+    local others = curBonus - prev
+    if others < 0 then others = 0 end
+    if others > CARRY_HARD_CAP then others = 0 end -- poisoned "others"
+    local newBonus = clampNum(others + bonus, 0, CARRY_HARD_CAP, bonus)
+
     pcall(function()
         if type(player.setMaxWeightBonus) ~= "function" then return end
-        local curBonus = readBonus()
-        local others = curBonus - prev
-        if others < 0 then others = 0 end
-        player:setMaxWeightBonus(others + bonus)
-        method = "maxWeightBonus"
+        player:setMaxWeightBonus(newBonus)
+        method = (method == "none" or method == "emergency_reset") and "maxWeightBonus" or (method .. "+maxWeightBonus")
     end)
 
-    -- B) setMaxWeight
-    pcall(function()
-        if type(player.setMaxWeight) == "function" then
-            player:setMaxWeight(target)
-            method = method == "none" and "setMaxWeight" or (method .. "+setMaxWeight")
-        end
-    end)
+    -- Optional gentle setMaxWeight only if value is sane and bonus alone didn't move the needle
+    after = readMax()
+    local wantTotal = nil
+    if before > 0 and before <= CARRY_HARD_CAP then
+        wantTotal = clampNum(before - prev + bonus, 1, CARRY_SANE_MAX, before)
+    end
+    if wantTotal and bonus > 0 and after > 0 and after < wantTotal - 0.05 and after <= CARRY_HARD_CAP then
+        pcall(function()
+            if type(player.setMaxWeight) == "function" then
+                player:setMaxWeight(wantTotal)
+                method = method .. "+setMaxWeight"
+            end
+        end)
+        after = readMax()
+    end
 
-    -- C) setMaxWeightBase (some B42 builds)
-    pcall(function()
-        if type(player.setMaxWeightBase) == "function" then
-            player:setMaxWeightBase(target)
-            method = method .. "+setMaxWeightBase"
-        end
-    end)
-
-    -- D) inventory capacity (UI sometimes reads this)
-    pcall(function()
-        local inv = player.getInventory and player:getInventory()
-        if inv and type(inv.setCapacity) == "function" then
-            inv:setCapacity(target)
-            method = method .. "+invCapacity"
-        elseif inv and type(inv.setMaxWeight) == "function" then
-            inv:setMaxWeight(target)
-            method = method .. "+invMaxWeight"
-        end
-    end)
+    -- NEVER call ItemContainer.setCapacity on the player inv — B42 max 100, causes WARN spam + can brick UI
 
     after = readMax()
-    local stuck = (bonus > 0 and after >= 0 and before >= 0 and (after < target - 0.05))
+    local stuck = (bonus > 0 and after >= 0 and before >= 0
+        and before <= CARRY_HARD_CAP and after <= CARRY_HARD_CAP
+        and (after < (before - prev + bonus) - 0.05))
+
     if bonus <= 0 then
         data._knoxPowerWeightBonus = 0
         data._knoxPowerWeightAppliedOk = true
-    elseif not stuck and after >= 0 then
+    elseif after > CARRY_HARD_CAP or after > INT_MAX_GUARD then
+        -- We made it worse or still insane — wipe our bonus tracking
+        data._knoxPowerWeightBonus = 0
+        data._knoxPowerWeightAppliedOk = false
+        method = method .. "|OVERFLOW"
+        pcall(function()
+            if type(player.setMaxWeightBonus) == "function" then player:setMaxWeightBonus(0) end
+        end)
+    elseif not stuck and after >= 0 and after <= CARRY_HARD_CAP then
         data._knoxPowerWeightBonus = bonus
         data._knoxPowerWeightAppliedOk = true
     else
-        -- Did not stick — clear poison prev; log failure
         data._knoxPowerWeightBonus = 0
         data._knoxPowerWeightAppliedOk = false
         method = method .. "|STUCK"
         if not KnoxSystem.Power._carryStuckLogged then
             KnoxSystem.Power._carryStuckLogged = true
             print(string.format(
-                "[KnoxSystem] Carry STUCK: before=%.2f after=%.2f target=%.2f bonus=%.2f methods=%s (B42 may ignore setMaxWeight; need UCWF register)",
-                before, after, target, bonus, method
+                "[KnoxSystem] Carry STUCK: before=%.2f after=%.2f bonus=%.2f methods=%s",
+                before, after, bonus, method
             ))
         end
     end
