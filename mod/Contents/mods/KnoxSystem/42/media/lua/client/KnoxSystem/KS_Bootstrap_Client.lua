@@ -223,7 +223,10 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
         if target.getHealth then hpAfter = tonumber(target:getHealth()) end
     end)
 
-    -- Display total: max(HP lost during our hooks, event + Power bonus)
+    -- Display total for Analyze plate
+    -- eventDamage = engine hit (already includes ground/crit mults)
+    -- powerBonus  = theoretical Power snip (10% * PowerLv * event)
+    -- hpDelta     = HP removed during our hooks (usually the Power snip; engine hit already applied)
     local eventDmg = tonumber(damage) or 0
     local powerBonus = 0
     local powerLv = 0
@@ -238,22 +241,40 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
         hpDelta = hpBefore - hpAfter
         if hpDelta < 0 then hpDelta = 0 end
     end
-    -- If engine already applied event damage before this callback, hpDelta ≈ powerBonus only.
-    -- Prefer event+bonus so plate matches full hit; use larger of the two.
-    local sumParts = eventDmg + powerBonus
-    local shown = sumParts
-    local pick = "event+powerBonus"
-    if hpDelta > shown then
-        shown = hpDelta
-        pick = "hpDelta"
-    end
-    -- If we saw a clear post-hook HP drop and event looks like pre-apply, combine
-    if hpDelta > 0.001 and eventDmg > 0 and hpDelta + 0.05 < eventDmg then
-        shown = sumParts
-        pick = "event+powerBonus_deltaSmall"
+
+    -- Power can only remove HP that still exists when our hook runs
+    local powerActual = powerBonus
+    if hpBefore ~= nil and hpBefore >= 0 then
+        if powerActual > hpBefore then powerActual = hpBefore end
+    elseif hpDelta > 0 and powerBonus > 0 then
+        -- Fallback: observed hook delta is what Power actually took
+        if hpDelta < powerActual then powerActual = hpDelta end
     end
 
-    -- Weapon / HP max context for scale confusion (PZ zombies are ~1–3 HP, not 150)
+    -- Full hit ≈ engine event (pre-hook) + Power HP actually removed
+    local sumParts = eventDmg + powerActual
+    local shown = sumParts
+    local pick = "event+powerActual"
+
+    -- If hooks removed more than event+power (other systems), prefer that
+    if hpDelta > shown + 0.001 then
+        shown = eventDmg + hpDelta
+        pick = "event+hpDelta"
+    end
+
+    -- Knocked-down / prone context (for log; engine already baked mult into eventDmg)
+    local targetDown, targetCrawling = 0, 0
+    pcall(function()
+        if target.isKnockedDown and target:isKnockedDown() then targetDown = 1 end
+    end)
+    pcall(function()
+        if target.isCrawling and target:isCrawling() then targetCrawling = 1 end
+    end)
+    pcall(function()
+        if target.isOnFloor and target:isOnFloor() then targetDown = 1 end
+    end)
+
+    -- Weapon / HP max context
     local wpnName, wpnDmg, bare, ranged = "?", -1, 0, 0
     pcall(function()
         if weapon then
@@ -268,12 +289,6 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
     pcall(function()
         if target.getMaxHealth then hpMax = tonumber(target:getMaxHealth()) or -1 end
     end)
-    if hpMax < 0 then
-        pcall(function()
-            -- some builds expose only getHealth (current); no separate max
-            if target.getHealth then hpMax = -1 end
-        end)
-    end
 
     local function logHitBreakdown()
         if not KnoxSystem.Track then return end
@@ -281,13 +296,16 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
             reason = "hit_damage_breakdown",
             eventDamage = eventDmg,
             powerLv = powerLv,
-            powerBonus = powerBonus,
-            powerBonusFormula = string.format("%.3f * 0.10 * %d", eventDmg, powerLv),
+            powerBonusTheoretical = powerBonus,
+            powerBonusActual = powerActual,
+            powerBonusFormula = string.format("%.3f * 0.10 * %d (= +%d%%)", eventDmg, powerLv, powerLv * 10),
             sumEventPlusPower = sumParts,
             hpBeforeHooks = hpBefore,
             hpAfterHooks = hpAfter,
             hpDeltaDuringHooks = hpDelta,
             hpMax = hpMax,
+            targetKnockedDown = targetDown,
+            targetCrawling = targetCrawling,
             plateShown = shown,
             plateDisplay = math.floor((tonumber(shown) or 0) * 100 + 0.5),
             platePick = pick,
@@ -295,8 +313,8 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
             weaponMaxDamage = wpnDmg,
             bareHands = bare,
             ranged = ranged,
-            note = "Plate display = round(engineDamage * 100). PZ HP is small float; ×100 is fantasy-scale UI only.",
-            noteScale = "Example: event 0.30 → plate 30; event 2.0 → plate 200.",
+            note = "Plate=round((eventDmg+powerActual)*100). Power10=+100% of event. Ground mult is VANILLA inside eventDmg (often ~2–2.5x).",
+            noteKillCap = "powerActual capped to HP left when hooks run (no fake overkill on plate).",
         }
         if KnoxSystem.Track.isChannelOn("damage") then
             KnoxSystem.Track.log("damage", "hit_breakdown", fields)
@@ -315,7 +333,8 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
         if KnoxSystem.Analyze and KnoxSystem.Analyze.onDamageDealt then
             KnoxSystem.Analyze.onDamageDealt(attacker, target, shown, {
                 eventDamage = eventDmg,
-                powerBonus = powerBonus,
+                powerBonus = powerActual,
+                powerBonusTheoretical = powerBonus,
                 hpDelta = hpDelta,
                 hpBefore = hpBefore,
                 hpAfter = hpAfter,
