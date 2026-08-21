@@ -313,9 +313,27 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
             weaponMaxDamage = wpnDmg,
             bareHands = bare,
             ranged = ranged,
-            note = "Plate=round((eventDmg+powerActual)*100). Power10=+100% of event. Ground mult is VANILLA inside eventDmg (often ~2–2.5x).",
+            note = "Plate=round((eventDmg+powerActual)*100). Colors: blue=under base, green=normal, red=crit (from eventDmg vs weapon base).",
             noteKillCap = "powerActual capped to HP left when hooks run (no fake overkill on plate).",
         }
+        -- Tier classification for logs (same as plate color)
+        pcall(function()
+            if KnoxSystem.Analyze and KnoxSystem.Analyze.classifyHitTier then
+                local tier, _, _, _, cref = KnoxSystem.Analyze.classifyHitTier(eventDmg, weapon, target, {
+                    targetKnockedDown = targetDown,
+                    targetCrawling = targetCrawling,
+                })
+                fields.dmgTier = tier
+                if cref then
+                    fields.tierBaseMin = cref.baseMin
+                    fields.tierBaseMax = cref.baseMax
+                    fields.tierBaseAvg = cref.baseAvg
+                    fields.tierCritMult = cref.critMult
+                    fields.tierGround = cref.ground
+                    fields.tierGMul = cref.gMul
+                end
+            end
+        end)
         if KnoxSystem.Track.isChannelOn("damage") then
             KnoxSystem.Track.log("damage", "hit_breakdown", fields)
         end
@@ -339,6 +357,9 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
                 hpBefore = hpBefore,
                 hpAfter = hpAfter,
                 platePick = pick,
+                weapon = weapon,
+                targetKnockedDown = targetDown,
+                targetCrawling = targetCrawling,
             })
         end
         if KnoxSystem.ZombieObserve and KnoxSystem.ZombieObserve.onMeleeHit then

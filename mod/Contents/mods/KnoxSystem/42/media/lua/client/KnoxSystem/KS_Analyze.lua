@@ -5,7 +5,7 @@ require "KnoxSystem/KS_ModData"
 require "KnoxSystem/KS_SystemSkills"
 
 KnoxSystem.Analyze = KnoxSystem.Analyze or {}
-KnoxSystem.Analyze.PLATE_REV = 20
+KnoxSystem.Analyze.PLATE_REV = 21
 
 KnoxSystem.Analyze.MOD_LABELS = {
     tough_skin = "Thick Skin",
@@ -34,6 +34,10 @@ local MIN_ALPHA = 0.15
 local DMG_LIFE_MS = 1500          -- damage float lifetime (also post-death hold)
 local DMG_DEATH_HOLD_MS = 1500    -- keep dmg plate this long after zombie leaves list / dies
 local DMG_DISPLAY_SCALE = 100     -- engine HP float → display (0.3 → 30, 2.0 → 200)
+-- Plate colors (bright)
+local DMG_COL_UNDER = { r = 0.25, g = 0.75, b = 1.00 } -- bright blue — below weapon base (moodles/debuffs)
+local DMG_COL_BASE  = { r = 0.25, g = 1.00, b = 0.35 } -- bright green — normal band
+local DMG_COL_CRIT  = { r = 1.00, g = 0.20, b = 0.18 } -- bright red — crit
 local LINE_H = 14
 local HEAD_OFF_PX = 158
 local POS_SAMPLE_MS = 250
@@ -423,20 +427,139 @@ local function upsertPlate(z, vis, dmgText)
     end
 end
 
+--- Classify engine event damage vs weapon base for plate color.
+--- Returns "under" | "base" | "crit", plus rgb.
+function KnoxSystem.Analyze.classifyHitTier(eventDamage, weapon, target, meta)
+    local e = num(eventDamage, 0)
+    local tier = "base"
+    local col = DMG_COL_BASE
+
+    local baseMin, baseMax, baseAvg = -1, -1, -1
+    local critMult = 2.0
+    pcall(function()
+        if not weapon then return end
+        if weapon.getMinDamage then baseMin = tonumber(weapon:getMinDamage()) or -1 end
+        if weapon.getMaxDamage then baseMax = tonumber(weapon:getMaxDamage()) or -1 end
+        if baseMin > 0 and baseMax > 0 then baseAvg = (baseMin + baseMax) * 0.5 end
+        if weapon.getCritDmgMultiplier then
+            critMult = tonumber(weapon:getCritDmgMultiplier()) or critMult
+        elseif weapon.getCriticalDamageMultiplier then
+            critMult = tonumber(weapon:getCriticalDamageMultiplier()) or critMult
+        end
+        if critMult < 1.2 then critMult = 2.0 end
+    end)
+    if meta then
+        if num(meta.baseMin, -1) > 0 then baseMin = num(meta.baseMin, baseMin) end
+        if num(meta.baseMax, -1) > 0 then baseMax = num(meta.baseMax, baseMax) end
+        if num(meta.baseAvg, -1) > 0 then baseAvg = num(meta.baseAvg, baseAvg) end
+        if num(meta.critDmgMult, -1) > 1 then critMult = num(meta.critDmgMult, critMult) end
+    end
+    if baseAvg <= 0 and baseMin > 0 and baseMax > 0 then
+        baseAvg = (baseMin + baseMax) * 0.5
+    end
+    if baseAvg <= 0 and baseMax > 0 then baseAvg = baseMax end
+    if baseMin <= 0 and baseMax > 0 then baseMin = baseMax * 0.5 end
+
+    -- Ground / crawl: vanilla already multiplies eventDamage; scale thresholds up
+    local ground = false
+    pcall(function()
+        if target then
+            if target.isKnockedDown and target:isKnockedDown() then ground = true end
+            if target.isCrawling and target:isCrawling() then ground = true end
+            if target.isOnFloor and target:isOnFloor() then ground = true end
+        end
+    end)
+    if meta and (meta.targetKnockedDown == 1 or meta.targetCrawling == 1) then
+        ground = true
+    end
+    local gMul = ground and 2.2 or 1.0
+
+    -- Explicit crit flags if the build exposes them
+    local flaggedCrit = false
+    pcall(function()
+        if weapon and weapon.isCritical and weapon:isCritical() then flaggedCrit = true end
+    end)
+    pcall(function()
+        if meta and meta.isCrit == 1 then flaggedCrit = true end
+    end)
+
+    if flaggedCrit then
+        tier, col = "crit", DMG_COL_CRIT
+    elseif baseMin > 0 and e > 0 and e < baseMin * 0.92 * gMul then
+        -- Clearly under modified weapon floor (moodles / exhausted / bad angle)
+        tier, col = "under", DMG_COL_UNDER
+    elseif baseAvg > 0 and e > 0 then
+        -- Crit band: near baseAvg * critMult * ground (skill can push "normal" above baseMax)
+        local critFloor = baseAvg * critMult * gMul * 0.88
+        -- Also treat very high vs baseMax as crit
+        local critFloor2 = (baseMax > 0) and (baseMax * critMult * gMul * 0.80) or critFloor
+        local critThresh = math.min(critFloor, critFloor2)
+        if critFloor2 > critThresh then critThresh = critFloor end -- use avg-based primarily
+        if e >= critFloor * 0.95 or e >= critFloor2 * 0.95 then
+            tier, col = "crit", DMG_COL_CRIT
+        elseif baseMin > 0 and e < baseMin * gMul * 0.98 then
+            tier, col = "under", DMG_COL_UNDER
+        else
+            tier, col = "base", DMG_COL_BASE
+        end
+    elseif e > 0 then
+        tier, col = "base", DMG_COL_BASE
+    end
+
+    return tier, col.r, col.g, col.b, {
+        baseMin = baseMin,
+        baseMax = baseMax,
+        baseAvg = baseAvg,
+        critMult = critMult,
+        ground = ground and 1 or 0,
+        gMul = gMul,
+        flaggedCrit = flaggedCrit and 1 or 0,
+    }
+end
+
 function KnoxSystem.Analyze.onDamageDealt(attacker, target, damage, meta)
     local player = attacker
     if not player or not KnoxSystem.Analyze.hasL2(player) then return end
     local ok, vis = KnoxSystem.Analyze.canSeeTarget(player, target)
     if not ok then
-        -- still show on direct hit even if LOS helpers flake
         ok, vis = true, 1
     end
     local dmg = num(damage, 0)
     if dmg <= 0 then return end
-    -- Display scale: engine float HP → “standard” HP numbers (×100, whole number)
     local shown = math.floor(dmg * DMG_DISPLAY_SCALE + 0.5)
     if shown < 1 and dmg > 0 then shown = 1 end
+
+    local eventDmg = dmg
+    local weapon = nil
+    if type(meta) == "table" then
+        if num(meta.eventDamage, -1) >= 0 then eventDmg = num(meta.eventDamage, dmg) end
+        weapon = meta.weapon
+    end
+
+    local tier, cr, cg, cb, cref = KnoxSystem.Analyze.classifyHitTier(eventDmg, weapon, target, meta)
+
     upsertPlate(target, vis, tostring(shown))
+    local key = zKey(target)
+    if plates[key] then
+        plates[key].dmg = tostring(shown)
+        plates[key].dmgBorn = nowMs()
+        plates[key].dmgTier = tier or "base"
+        plates[key].dmgR = cr or DMG_COL_BASE.r
+        plates[key].dmgG = cg or DMG_COL_BASE.g
+        plates[key].dmgB = cb or DMG_COL_BASE.b
+    end
+
+    if type(meta) == "table" then
+        meta.dmgTier = tier
+        if cref then
+            meta.tierBaseMin = cref.baseMin
+            meta.tierBaseMax = cref.baseMax
+            meta.tierBaseAvg = cref.baseAvg
+            meta.tierCritMult = cref.critMult
+            meta.tierGround = cref.ground
+            meta.tierFlaggedCrit = cref.flaggedCrit
+        end
+    end
 end
 
 function KnoxSystem.Analyze.onPlayerUpdate(player)
@@ -709,7 +832,10 @@ function KnoxSystem.Analyze.drawPlates()
                             local fade = 1 - (age / life)
                             if fade < 0.15 then fade = 0.15 end
                             if fade > 1 then fade = 1 end
-                            drawText(p.dmg, sx, y, 1.0, 0.85, 0.2, a * fade)
+                            local dr = num(p.dmgR, DMG_COL_BASE.r)
+                            local dg = num(p.dmgG, DMG_COL_BASE.g)
+                            local db = num(p.dmgB, DMG_COL_BASE.b)
+                            drawText(p.dmg, sx, y, dr, dg, db, a * fade)
                             y = y - LINE_H
                         end
                     end
