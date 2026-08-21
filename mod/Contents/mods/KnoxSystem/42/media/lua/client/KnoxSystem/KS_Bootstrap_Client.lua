@@ -280,7 +280,6 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
         end
     end)
 end
-end
 
 local function onPlayerGetDamage(player, damageType, damage)
     if not player then return end
