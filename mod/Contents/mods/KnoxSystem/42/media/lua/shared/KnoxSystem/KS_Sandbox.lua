@@ -12,7 +12,8 @@ local DEFAULTS = {
     EnduranceEncumbranceDamagePercentPerLevel = 6, -- 0-20; over-enc dmg refund
     SpCostPower = 2,                              -- 1-5
     SpCostEndurance = 2,                          -- 1-5
-    PersonalXpPercent = 50,                       -- 10-200; 100 = weight tables as-is
+    PersonalXpPercent = 100,                      -- 50-500; base skills → Personal XP; 100 = full weight tables
+    ClassSkillPersonalXpPercent = 50,             -- 10-200; class skill XP → Personal XP; 50 = old half-bucket
     AllowSprintersIfVanillaOff = true,            -- checkbox
     GoblinChancePerThousand = 2,                  -- 1-10 → chance = n/1000 (default 0.002 = 1/500)
 }
@@ -54,7 +55,8 @@ local function readRaw()
     t.EnduranceEncumbranceDamagePercentPerLevel = clamp(t.EnduranceEncumbranceDamagePercentPerLevel, 0, 20, 6)
     t.SpCostPower = clamp(t.SpCostPower, 1, 5, 2)
     t.SpCostEndurance = clamp(t.SpCostEndurance, 1, 5, 2)
-    t.PersonalXpPercent = clamp(t.PersonalXpPercent, 10, 200, 50)
+    t.PersonalXpPercent = clamp(t.PersonalXpPercent, 50, 500, 100)
+    t.ClassSkillPersonalXpPercent = clamp(t.ClassSkillPersonalXpPercent, 10, 200, 50)
     t.GoblinChancePerThousand = clamp(t.GoblinChancePerThousand, 1, 10, 2)
     if t.AllowSprintersIfVanillaOff == nil then
         t.AllowSprintersIfVanillaOff = true
@@ -75,7 +77,7 @@ function KnoxSystem.Sandbox.refresh()
     if not _logged then
         _logged = true
         print(string.format(
-            "[KnoxSystem] Sandbox: PowerDmg%%=%d KnockPts=%d EndStam%%=%d EndEncDmg%%=%d SpPower=%d SpEnd=%d PersXP%%=%d SprintersIfOff=%s GoblinPerK=%d (%.4f)",
+            "[KnoxSystem] Sandbox: PowerDmg%%=%d KnockPts=%d EndStam%%=%d EndEncDmg%%=%d SpPower=%d SpEnd=%d BasePersXP%%=%d ClassPersXP%%=%d SprintersIfOff=%s GoblinPerK=%d (%.4f)",
             _cache.PowerDamagePercentPerLevel,
             _cache.PowerKnockPointsPerLevel,
             _cache.EnduranceStaminaPercentPerLevel,
@@ -83,6 +85,7 @@ function KnoxSystem.Sandbox.refresh()
             _cache.SpCostPower,
             _cache.SpCostEndurance,
             _cache.PersonalXpPercent,
+            _cache.ClassSkillPersonalXpPercent,
             tostring(_cache.AllowSprintersIfVanillaOff),
             _cache.GoblinChancePerThousand,
             (_cache.GoblinChancePerThousand or 2) / 1000.0
@@ -128,7 +131,13 @@ function KnoxSystem.Sandbox.spCostEndurance()
 end
 
 function KnoxSystem.Sandbox.personalXpScale()
+    -- Base skill XP → Personal XP (100 = full weight tables)
     return KnoxSystem.Sandbox.getValue("PersonalXpPercent") / 100.0
+end
+
+function KnoxSystem.Sandbox.classSkillPersonalXpScale()
+    -- Class skill XP → Personal XP (50 default = old 0.5 half-bucket; 100 = 1:1)
+    return KnoxSystem.Sandbox.getValue("ClassSkillPersonalXpPercent") / 100.0
 end
 
 function KnoxSystem.Sandbox.allowSprintersIfVanillaOff()

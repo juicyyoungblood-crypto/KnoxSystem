@@ -29,8 +29,8 @@ personal_xp:
   primary_source: on_base_skill_xp_gained
   formula: personal_xp_delta = skill_xp_gained * weight(skill_id) * (sandbox.PersonalXpPercent / 100)
   sandbox:
-    PersonalXpPercent: { min: 10, max: 500, default: 100 }  # 100 = full weight tables
-    ClassSkillPersonalXpPercent: { min: 10, max: 500, default: 50 }  # 50 = old half-bucket; 100 = 1:1
+    PersonalXpPercent: { min: 50, max: 500, default: 100 }  # 100 = full weight tables
+    ClassSkillPersonalXpPercent: { min: 10, max: 200, default: 50 }  # 50 = old half-bucket; 100 = 1:1
   class_skill_xp_also_mints_personal_xp: true
   class_skill_personal_xp_formula: personal_xp_delta = class_skill_xp_gained * (sandbox.ClassSkillPersonalXpPercent / 100)
   class_skill_weight_factor: 0.5  # legacy design note; live default embodied as ClassSkillPersonalXpPercent=50

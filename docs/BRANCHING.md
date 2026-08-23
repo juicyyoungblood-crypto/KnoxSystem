@@ -10,19 +10,30 @@
 
 ## Current baseline
 
-- **Stable tip:** `d0b6919` — `release(0.6.21): promote WR/modifiers/combat/Goblin as Stable baseline`
-- **Live mod version at baseline:** **0.6.21**
-- **Tag:** `stable-0.6.21` (and `v0.6.21`)
-- **Previous Stable:** `d8ddcdf` / `stable-0.5.163` (pre–WR/modifiers hang era)
+- **Stable tip:** *(set after promote — 0.6.22 XP sandbox split)*  
+- **Live mod version at baseline:** **0.6.22**
+- **Tag:** `stable-0.6.22` (and `v0.6.22`)
+- **Previous Stable:** `d0b6919` / `stable-0.6.21` (WR/modifiers/combat/Goblin)
+- **Earlier:** `d8ddcdf` / `stable-0.5.163` (pre–WR/modifiers hang era)
 
-### What’s in 0.6.21 Stable (summary)
+### What’s in 0.6.22 Stable (summary)
+
+Everything from **0.6.21**, plus:
+
+- Split Personal XP sandbox sliders:
+  - **Base skills** `PersonalXpPercent` — min **50**, max **500**, default **100**
+  - **Class skills** `ClassSkillPersonalXpPercent` — min **10**, max **200**, default **50**
+- Class skill Personal XP mint reads the class slider (was hardcoded 0.5)
+- Labels: “Personal XP from Base Skills” / “Personal XP from Class Skills”
+
+### What’s in 0.6.21 (still included)
 
 - World Rank + WorldSpawn curves (A2/H1/S1/E2/D2)
 - Modifier catalog + loadouts + easy combat (skins, Heavy Hit, Sys.Hardened)
 - Relentless (KD-only) + Anchored (full control lock) — idle-safe
 - Goblin Tier 0: exclusive, flee, LOS despawn after flee, loot ×2, sandbox chance 1–10‰
 - Analyze PLATE_REV≥23 distance prefilter
-- Sandbox: Power/Endurance/SP/PersXP + GoblinChancePerThousand
+- Sandbox: Power/Endurance/SP + GoblinChancePerThousand
 
 ## Day-to-day
 

@@ -2,5 +2,5 @@ name=Knox System
 id=KnoxSystem
 description=System apocalypse / LitRPG layer for Build 42. World Rank curves + Modifier framework + Elite Ranks. Power carry/melee/knock. MVP Warrior.
 author=Knox System
-modversion=0.6.21
+modversion=0.6.22
 versionMin=42.0

@@ -1,6 +1,7 @@
 -- KnoxSystem class unlock / permanent pick (Phase 4)
 require "KnoxSystem/KS_ModData"
 require "KnoxSystem/KS_Config"
+require "KnoxSystem/KS_Sandbox"
 
 KnoxSystem.Class = KnoxSystem.Class or {}
 
@@ -122,11 +123,20 @@ function KnoxSystem.Class.addSkillXp(player, skillId, amount, reason)
         print(string.format("[KnoxSystem] Class skill level-up: %s → %d (%s)", skillId, s.level, tostring(reason)))
     end
 
-    -- Half combat-bucket personal XP from class skill XP (design)
+    -- Personal XP from class skill XP (sandbox ClassSkillPersonalXpPercent; def 50 = old half-bucket)
     if KnoxSystem.PersonalXP and KnoxSystem.PersonalXP.addPersonalXp then
-        local w = 0.5 * 1.0 -- combat bucket weight * class factor (draft)
+        local scale = 0.5
+        if KnoxSystem.Sandbox and KnoxSystem.Sandbox.classSkillPersonalXpScale then
+            scale = KnoxSystem.Sandbox.classSkillPersonalXpScale()
+        elseif KnoxSystem.Config and KnoxSystem.Config.ClassSkillWeightFactor then
+            scale = KnoxSystem.Config.ClassSkillWeightFactor
+        end
         pcall(function()
-            KnoxSystem.PersonalXP.addPersonalXp(player, amount * w, "class:" .. skillId)
+            KnoxSystem.PersonalXP.addPersonalXp(
+                player,
+                amount * scale,
+                string.format("class:%s xpScale=%.2f", skillId, scale)
+            )
         end)
     end
     return true, leveled

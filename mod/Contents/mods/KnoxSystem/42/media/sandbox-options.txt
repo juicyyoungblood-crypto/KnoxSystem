@@ -63,11 +63,21 @@ option KnoxSystem.SpCostEndurance
 option KnoxSystem.PersonalXpPercent
 {
 	type = integer,
+	min = 50,
+	max = 500,
+	default = 100,
+	page = KnoxSystem,
+	translation = KnoxSystem_PersonalXpPercent,
+}
+
+option KnoxSystem.ClassSkillPersonalXpPercent
+{
+	type = integer,
 	min = 10,
 	max = 200,
 	default = 50,
 	page = KnoxSystem,
-	translation = KnoxSystem_PersonalXpPercent,
+	translation = KnoxSystem_ClassSkillPersonalXpPercent,
 }
 
 option KnoxSystem.AllowSprintersIfVanillaOff
