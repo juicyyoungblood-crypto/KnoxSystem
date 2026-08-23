@@ -10,7 +10,7 @@
 
 ## Current baseline
 
-- **Stable tip:** (this promote) — Knox **0.6.21**
+- **Stable tip:** `d0b6919` — `release(0.6.21): promote WR/modifiers/combat/Goblin as Stable baseline`
 - **Live mod version at baseline:** **0.6.21**
 - **Tag:** `stable-0.6.21` (and `v0.6.21`)
 - **Previous Stable:** `d8ddcdf` / `stable-0.5.163` (pre–WR/modifiers hang era)
