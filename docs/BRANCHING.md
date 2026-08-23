@@ -10,7 +10,7 @@
 
 ## Current baseline
 
-- **Stable tip:** *(set after promote — 0.6.22 XP sandbox split)*  
+- **Stable tip:** `126a429` — `release(0.6.22): split base/class Personal XP sandbox sliders`
 - **Live mod version at baseline:** **0.6.22**
 - **Tag:** `stable-0.6.22` (and `v0.6.22`)
 - **Previous Stable:** `d0b6919` / `stable-0.6.21` (WR/modifiers/combat/Goblin)
