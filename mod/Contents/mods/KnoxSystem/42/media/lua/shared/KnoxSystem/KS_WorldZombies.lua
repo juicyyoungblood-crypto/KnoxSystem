@@ -1,8 +1,12 @@
 -- Knox System Phase 5: spawn-stamp world scaling on zombies
 -- Design: design/world_scaling.yaml + ADR 0019
+-- Modifier loadouts: KS_Modifiers (catalog/tiers — add mods there, not here)
 -- Elite loot: inv+wear attempt, then guaranteed ground drop on death.
 require "KnoxSystem/KS_ModData"
 require "KnoxSystem/KS_WorldRank"
+require "KnoxSystem/KS_WorldSpawn"
+require "KnoxSystem/KS_Modifiers"
+require "KnoxSystem/KS_Goblin"
 require "KnoxSystem/KS_Config"
 require "KnoxSystem/KS_TrackLog"
 require "KnoxSystem/KS_Sandbox"
@@ -11,12 +15,13 @@ KnoxSystem.WorldZombies = KnoxSystem.WorldZombies or {}
 
 local INTENSITY_DEFAULT = 1.0
 
+-- System Tier baseline stats only. Named Modifier tags come from KS_Modifiers loadout.
 local TIER_KIT = {
-    [0] = { name = "Untouched", hp = 1.00, dmg = 1.00, speed = 1.00, hear = 1.00, sight = 1.00, sprinter = 0.00, tags = "" },
-    [1] = { name = "Stirred",   hp = 1.15, dmg = 1.10, speed = 1.05, hear = 1.05, sight = 1.05, sprinter = 0.06, tags = "tough_skin" },
-    [2] = { name = "Marked",    hp = 1.35, dmg = 1.20, speed = 1.10, hear = 1.10, sight = 1.10, sprinter = 0.12, tags = "tough_skin,heavy_hit" },
-    [3] = { name = "Claimed",   hp = 1.60, dmg = 1.35, speed = 1.15, hear = 1.20, sight = 1.20, sprinter = 0.20, tags = "tough_skin,heavy_hit,relentless" },
-    [4] = { name = "Apex",      hp = 2.00, dmg = 1.50, speed = 1.20, hear = 1.25, sight = 1.30, sprinter = 0.30, tags = "tough_skin,heavy_hit,relentless,system_hardened" },
+    [0] = { name = "Untouched", hp = 1.00, dmg = 1.00, speed = 1.00, hear = 1.00, sight = 1.00, sprinter = 0.00 },
+    [1] = { name = "Stirred",   hp = 1.15, dmg = 1.10, speed = 1.05, hear = 1.05, sight = 1.05, sprinter = 0.06 },
+    [2] = { name = "Marked",    hp = 1.35, dmg = 1.20, speed = 1.10, hear = 1.10, sight = 1.10, sprinter = 0.12 },
+    [3] = { name = "Claimed",   hp = 1.60, dmg = 1.35, speed = 1.15, hear = 1.20, sight = 1.20, sprinter = 0.20 },
+    [4] = { name = "Apex",      hp = 2.00, dmg = 1.50, speed = 1.20, hear = 1.25, sight = 1.30, sprinter = 0.30 },
 }
 
 local ELITE_BASE_CHANCE = { [0] = 0.00, [1] = 0.02, [2] = 0.04, [3] = 0.07, [4] = 0.12 }
@@ -298,24 +303,24 @@ local function applySightHearing(zombie, kit, elite)
     }
 end
 
-local function applyHealth(zombie, kit, elite)
-    local mult = (kit.hp or 1) * (elite and ELITE_EXTRA.hp or 1)
+local function applyHealthMult(zombie, mult)
+    mult = tonumber(mult) or 1
+    if mult < 0.05 then mult = 0.05 end
     local hBefore = tryNum(zombie, "getHealth")
     local maxBefore = tryNum(zombie, "getMaxHealth")
     local hAfter, maxAfter = hBefore, maxBefore
-    if hBefore and hBefore > 0 then
+    if hBefore and hBefore > 0 and mult ~= 1 then
         pcall(function()
             if type(zombie.setHealth) == "function" then zombie:setHealth(hBefore * mult) end
         end)
         hAfter = tryNum(zombie, "getHealth")
     end
-    if maxBefore and maxBefore > 0 then
+    if maxBefore and maxBefore > 0 and mult ~= 1 then
         pcall(function()
             if type(zombie.setMaxHealth) == "function" then zombie:setMaxHealth(maxBefore * mult) end
         end)
         maxAfter = tryNum(zombie, "getMaxHealth")
     end
-    -- Peak for Analyze HP bars
     pcall(function()
         local md = zombie:getModData()
         if md then
@@ -329,6 +334,12 @@ local function applyHealth(zombie, kit, elite)
         maxHealthBefore = maxBefore or -1, maxHealthAfter = maxAfter or -1,
         hpMultApplied = mult,
     }
+end
+
+-- Back-compat wrapper (old kit path)
+local function applyHealth(zombie, kit, elite)
+    local mult = (kit and kit.hp or 1) * (elite and ELITE_EXTRA.hp or 1)
+    return applyHealthMult(zombie, mult)
 end
 
 local function applyEliteGear(zombie)
@@ -507,6 +518,11 @@ end
 
 function KnoxSystem.WorldZombies.onZombieDead(zombie)
     pcall(function()
+        if KnoxSystem.Goblin and KnoxSystem.Goblin.onDeath then
+            if KnoxSystem.Goblin.onDeath(zombie, "OnZombieDead") then
+                return
+            end
+        end
         KnoxSystem.WorldZombies.dropEliteLoot(zombie, "OnZombieDead")
     end)
 end
@@ -560,15 +576,97 @@ function KnoxSystem.WorldZombies.stamp(zombie, reason)
             days = KnoxSystem.WorldRank.getWorldAgeDays() or 0
         end
 
-        local tier = tonumber(rollTier(pl, days, inten)) or 0
-        local kit = TIER_KIT[tier] or TIER_KIT[0]
-        local elite, eliteChance = rollElite(tier, inten)
+        local profile = nil
+        if KnoxSystem.WorldSpawn and KnoxSystem.WorldSpawn.profile then
+            profile = KnoxSystem.WorldSpawn.profile(worldRank)
+        end
 
-        local sprintChance = (kit.sprinter or 0) * inten
-        if elite then sprintChance = sprintChance + ELITE_EXTRA.sprinter end
-        if sprintChance > 0.85 then sprintChance = 0.85 end
-        local doSprint = (not isCrawler(zombie)) and (randFloat(0, 1) < sprintChance)
-        -- Respect sandbox: if vanilla sprinters off and Knox opt unchecked, never stamp sprinters
+        -- Modifier framework: Goblin first (exclusive)
+        if KnoxSystem.Modifiers and KnoxSystem.Modifiers.rollGoblin then
+            local isGoblin, goblinId = KnoxSystem.Modifiers.rollGoblin()
+            if isGoblin then
+                -- Neighborhood picks sprinter vs fast shambler (design); ignore WR gate.
+                md.knoxWorldScaled = true
+                md.knoxSystem = true
+                md.knoxGoblin = true
+                md.knoxTier = 0
+                md.knoxTierName = "Goblin"
+                md.knoxElite = false
+                md.knoxEliteRank = 0
+                md.knoxEliteLabel = nil
+                md.knoxGoblinExclusive = true -- never elite / never other loadout
+                md.knoxTags = goblinId or "goblin"
+                md.knoxEliteMods = { goblinId or "goblin" }
+                md.knoxHpMult = 1
+                md.knoxDmgMult = 1
+                md.knoxSightMult = 1
+                md.knoxHearMult = 1
+                md.knoxWorldRank = worldRank
+                md.knoxPL = pl
+                md.knoxDays = days
+                md.knoxIntensity = inten
+                md.knoxLootDropped = false
+                md.knoxGoblinLootDropped = false
+                if KnoxSystem.Goblin and KnoxSystem.Goblin.onStamp then
+                    KnoxSystem.Goblin.onStamp(zombie, md)
+                else
+                    -- fallback light sprint roll if Goblin module missing
+                    local gSprint, gCh = false, 0
+                    if KnoxSystem.WorldSpawn and KnoxSystem.WorldSpawn.rollGoblinSprinter then
+                        gSprint, gCh = KnoxSystem.WorldSpawn.rollGoblinSprinter()
+                    end
+                    md.knoxSprinter = gSprint and true or false
+                    md.knoxSprintChance = gCh or 0
+                    md.knoxSpeedMult = gSprint and 1.2 or 1.05
+                end
+                if KnoxSystem.Track and KnoxSystem.Track.isChannelOn("zombie") then
+                    KnoxSystem.Track.log("zombie", "goblin_stamp", {
+                        reason = tostring(reason or "stamp"),
+                        neighbors = md.knoxGoblinNeighbors or -1,
+                        sprinter = md.knoxSprinter and 1 or 0,
+                        wr = worldRank,
+                        note = "Exclusive Goblin — no elite/loadout",
+                    })
+                end
+                return true
+            end
+        end
+
+        -- Elite promote (WR curve) — Elite Rank replaces old System Tier elite bundle
+        local elite, eliteChance = false, 0.02
+        if profile and KnoxSystem.WorldSpawn.rollIsElite then
+            elite, eliteChance = KnoxSystem.WorldSpawn.rollIsElite(profile)
+        else
+            elite, eliteChance = rollElite(0, inten)
+        end
+        local eliteRankId, rankDef = 0, nil
+        if elite and KnoxSystem.WorldSpawn and KnoxSystem.WorldSpawn.rollEliteRank then
+            eliteRankId, rankDef = KnoxSystem.WorldSpawn.rollEliteRank(profile)
+        elseif elite then
+            eliteRankId, rankDef = 1, (KnoxSystem.WorldSpawn and KnoxSystem.WorldSpawn.getEliteRankDef(1)) or nil
+        end
+
+        -- H1: base HP from WR only, then elite rank HP mult
+        local hpMult = (profile and profile.hpMultBase) or 1
+        if elite and rankDef and rankDef.hp_mult then
+            hpMult = hpMult * rankDef.hp_mult
+        end
+        local dmgMult = 1
+        local speedMult = 1
+        local sightMult = 1
+        local hearMult = 1
+        if elite and rankDef then
+            dmgMult = rankDef.dmg_mult or 1
+            speedMult = rankDef.speed_mult or 1
+            sightMult = rankDef.sight_mult or 1
+            hearMult = rankDef.hear_mult or 1
+        end
+
+        -- Sprinter S1: Knox only adds chance at WR>=5; else leave vanilla (no Knox stamp)
+        local doSprint, sprintChance, knoxDrove = false, 0, false
+        if profile and KnoxSystem.WorldSpawn.rollKnoxSprinter then
+            doSprint, sprintChance, knoxDrove = KnoxSystem.WorldSpawn.rollKnoxSprinter(profile, isCrawler(zombie))
+        end
         if doSprint and KnoxSystem.Sandbox and KnoxSystem.Sandbox.knoxMayStampSprinters then
             if not KnoxSystem.Sandbox.knoxMayStampSprinters() then
                 doSprint = false
@@ -576,31 +674,68 @@ function KnoxSystem.WorldZombies.stamp(zombie, reason)
             end
         end
 
-        local hpInfo = applyHealth(zombie, kit, elite)
-        local spdInfo = applySpeedPackage(zombie, kit, elite, doSprint)
-        local senseInfo = applySightHearing(zombie, kit, elite)
+        -- Loadout from Modifiers + WorldSpawn recipe
+        local modList = {}
+        if KnoxSystem.Modifiers and KnoxSystem.Modifiers.rollLoadout then
+            modList = KnoxSystem.Modifiers.rollLoadout(worldRank, elite, profile) or {}
+        end
+        for _, mid in ipairs(modList) do
+            if mid == "anchored" then
+                doSprint = false
+                break
+            end
+        end
+
+        local kitFake = { hp = 1, dmg = dmgMult, speed = speedMult, sight = sightMult, hear = hearMult }
+        local hpMultFinal = hpMult
+        -- Fold Evolved etc. hp_mult after tags assigned below — applied post-modList
+        local hpInfo = applyHealthMult(zombie, hpMultFinal)
+        local spdInfo = applySpeedPackage(zombie, kitFake, false, doSprint)
+        local senseInfo = applySightHearing(zombie, kitFake, false)
         local gearInfo = { gearBag = "", gearWeapon = "", gearCraft = "", gearCount = 0, dropList = "" }
         if elite then gearInfo = applyEliteGear(zombie) end
 
-        local dmgMult = (kit.dmg or 1) * (elite and ELITE_EXTRA.dmg or 1)
+        local tierName = "Normal"
+        local eliteLabel = nil
+        if elite and rankDef then
+            tierName = rankDef.display or "Elite"
+            eliteLabel = rankDef.display_zombie or tierName
+        end
 
         md.knoxWorldScaled = true
         md.knoxSystem = true
-        md.knoxTier = tier
-        md.knoxTierName = kit.name
+        md.knoxGoblin = false
+        md.knoxTier = elite and eliteRankId or 0 -- store elite rank id when elite; 0 normal
+        md.knoxTierName = tierName
         md.knoxElite = elite and true or false
-        md.knoxTags = kit.tags or ""
+        md.knoxEliteRank = elite and eliteRankId or 0
+        md.knoxEliteLabel = eliteLabel
+        md.knoxTags = (KnoxSystem.Modifiers and KnoxSystem.Modifiers.toTagsString(modList)) or ""
+        md.knoxEliteMods = modList
+        -- Easy combat cache + Evolved HP top-up
+        if KnoxSystem.Modifiers and KnoxSystem.Modifiers.applyStampPassives then
+            local evoHp = KnoxSystem.Modifiers.applyStampPassives(zombie, md) or 1
+            if evoHp and evoHp > 1.001 then
+                local extra = applyHealthMult(zombie, evoHp)
+                if extra and extra.hpMultApplied then
+                    hpInfo.hpMultApplied = (hpInfo.hpMultApplied or 1) * extra.hpMultApplied
+                end
+            end
+        end
         md.knoxHpMult = hpInfo.hpMultApplied
         md.knoxDmgMult = dmgMult
-        md.knoxSpeedMult = spdInfo.speedMultApplied
-        md.knoxSightMult = senseInfo.sightMult
-        md.knoxHearMult = senseInfo.hearMult
+        md.knoxSpeedMult = spdInfo.speedMultApplied or speedMult
+        md.knoxSightMult = senseInfo.sightMult or sightMult
+        md.knoxHearMult = senseInfo.hearMult or hearMult
         md.knoxSprinter = spdInfo.madeSprinter == 1
         md.knoxSprintChance = sprintChance
+        md.knoxSprintKnox = knoxDrove and 1 or 0
         md.knoxWorldRank = worldRank
         md.knoxPL = pl
         md.knoxDays = days
         md.knoxIntensity = inten
+        md.knoxHpBaseWR = profile and profile.hpMultBase or 1
+        md.knoxEliteChance = eliteChance
         md.knoxGearBag = gearInfo.gearBag
         md.knoxGearWeapon = gearInfo.gearWeapon
         md.knoxGearCraft = gearInfo.gearCraft
@@ -611,18 +746,18 @@ function KnoxSystem.WorldZombies.stamp(zombie, reason)
         if elite then
             pcall(function()
                 if KnoxSystem.EliteTell and KnoxSystem.EliteTell.onEliteStamped then
-                    KnoxSystem.EliteTell.onEliteStamped(zombie, tier, kit.name)
+                    KnoxSystem.EliteTell.onEliteStamped(zombie, eliteRankId, eliteLabel or tierName)
                 else
                     local desc = nil
                     if type(zombie.getDescriptor) == "function" then desc = zombie:getDescriptor() end
                     if desc then
                         if type(desc.setForename) == "function" then desc:setForename("ELITE") end
                         if type(desc.setSurname) == "function" then
-                            desc:setSurname(string.format("T%s-%s", tostring(tier), tostring(kit.name)))
+                            desc:setSurname(tostring(eliteLabel or tierName or "Elite"))
                         end
                     end
                     if type(zombie.addLineChatElement) == "function" then
-                        local label = string.format("* ELITE T%s %s *", tostring(tier), tostring(kit.name))
+                        local label = string.format("* %s *", tostring(eliteLabel or tierName or "Elite"))
                         local font = UIFont and (UIFont.Medium or UIFont.Small) or nil
                         if font then
                             zombie:addLineChatElement(label, 1.0, 0.82, 0.15, font, 45.0, "knox_elite")
@@ -637,11 +772,12 @@ function KnoxSystem.WorldZombies.stamp(zombie, reason)
         if KnoxSystem.Track and KnoxSystem.Track.isChannelOn("zombie") then
             KnoxSystem.Track.log("zombie", "stamp", {
                 reason = tostring(reason or "spawn"),
-                tier = tier,
-                tierName = kit.name,
+                eliteRank = eliteRankId or 0,
+                tierName = tierName,
                 elite = elite and 1 or 0,
                 eliteChance = eliteChance or 0,
-                tags = kit.tags or "",
+                eliteLabel = eliteLabel or "",
+                tags = md.knoxTags or "",
                 worldRank = worldRank,
                 personalLevel = pl,
                 worldDays = days,
@@ -655,21 +791,13 @@ function KnoxSystem.WorldZombies.stamp(zombie, reason)
                 speedMult = spdInfo.speedMultApplied,
                 healthBefore = hpInfo.healthBefore,
                 healthAfter = hpInfo.healthAfter,
+                hpMult = hpInfo.hpMultApplied,
                 maxHealthBefore = hpInfo.maxHealthBefore,
                 maxHealthAfter = hpInfo.maxHealthAfter,
-                hpMult = hpInfo.hpMultApplied,
                 dmgMult = dmgMult,
-                sightBefore = senseInfo.sightBefore,
-                sightAfter = senseInfo.sightAfter,
                 sightMult = senseInfo.sightMult,
-                hearBefore = senseInfo.hearBefore,
-                hearAfter = senseInfo.hearAfter,
                 hearMult = senseInfo.hearMult,
-                gearBag = gearInfo.gearBag,
-                gearWeapon = gearInfo.gearWeapon,
-                gearCraft = gearInfo.gearCraft,
                 gearCount = gearInfo.gearCount,
-                gearDropList = gearInfo.dropList or "",
                 liveTierApplied = 1,
                 knoxStamped = 1,
             })
@@ -686,12 +814,37 @@ end
 
 function KnoxSystem.WorldZombies.onZombieUpdate(zombie)
     if not zombie then return end
-    KnoxSystem.WorldZombies.stamp(zombie, "update")
+    -- Cheap path: only stamp if not already scaled
+    local md = nil
+    pcall(function()
+        if type(zombie.getModData) == "function" then md = zombie:getModData() end
+    end)
+    if not md or not md.knoxWorldScaled then
+        KnoxSystem.WorldZombies.stamp(zombie, "update")
+        pcall(function()
+            if type(zombie.getModData) == "function" then md = zombie:getModData() end
+        end)
+    end
+    -- Relentless / Anchored: clear KD if engine re-applied after hit frame
+    pcall(function()
+        if KnoxSystem.Modifiers and KnoxSystem.Modifiers.maintainImmunities then
+            KnoxSystem.Modifiers.maintainImmunities(zombie)
+        end
+    end)
+    -- Goblin flee / LOS despawn / neighborhood speed
+    pcall(function()
+        if KnoxSystem.Goblin and KnoxSystem.Goblin.onZombieUpdate then
+            KnoxSystem.Goblin.onZombieUpdate(zombie)
+        end
+    end)
     pcall(function()
         local dead = false
         if type(zombie.isDead) == "function" then dead = zombie:isDead() end
         if type(zombie.isAlive) == "function" and not zombie:isAlive() then dead = true end
         if dead then
+            if KnoxSystem.Goblin and KnoxSystem.Goblin.onDeath then
+                KnoxSystem.Goblin.onDeath(zombie, "update_dead")
+            end
             KnoxSystem.WorldZombies.dropEliteLoot(zombie, "update_dead")
         end
     end)
@@ -707,4 +860,4 @@ function KnoxSystem.WorldZombies.getDamageMult(zombie)
     return 1
 end
 
-print("[KnoxSystem] KS_WorldZombies loaded (spawn-stamp + elite death loot)")
+print("[KnoxSystem] KS_WorldZombies loaded (WorldSpawn curves + Modifier loadout + Elite Rank + elite loot)")

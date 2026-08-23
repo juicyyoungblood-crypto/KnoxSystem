@@ -17,6 +17,7 @@ require "KnoxSystem/KS_Warrior_Armored"
 require "KnoxSystem/KS_TrackLog"
 require "KnoxSystem/KS_ZombieObserve"
 require "KnoxSystem/KS_WorldZombies"
+require "KnoxSystem/KS_Goblin"
 
 print(string.format("[KnoxSystem] server/shared boot v%s Phase 5", KnoxSystem.VERSION))
 

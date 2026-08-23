@@ -77,3 +77,13 @@ option KnoxSystem.AllowSprintersIfVanillaOff
 	page = KnoxSystem,
 	translation = KnoxSystem_AllowSprintersIfVanillaOff,
 }
+
+option KnoxSystem.GoblinChancePerThousand
+{
+	type = integer,
+	min = 1,
+	max = 10,
+	default = 2,
+	page = KnoxSystem,
+	translation = KnoxSystem_GoblinChancePerThousand,
+}

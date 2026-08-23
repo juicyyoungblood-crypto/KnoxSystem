@@ -1,29 +1,19 @@
--- KnoxSystem World Rank (coarse PL + day band)
+-- KnoxSystem World Rank (System Tab readout)
+-- Formula (design ADR 0031 / zombie_mutations.yaml): name stays "World Rank"
+--   timeLeg  = min(10, floor(worldAgeDays / 3))   -- full +10 from day 30
+--   powerLeg = floor(avgPersonalLevel / 2)       -- SP: local PL; MP: mean of online PLs
+--   rank     = min(40, timeLeg + powerLeg)
+-- Does NOT change zombie tier stamping — callers may still use the number later.
 require "KnoxSystem/KS_ModData"
-require "KnoxSystem/KS_Level"
 
 KnoxSystem.WorldRank = KnoxSystem.WorldRank or {}
 
--- design/world_scaling.yaml — band display draft
-local function plBand(pl)
-    pl = pl or 0
-    if pl >= 100 then return 5 end
-    if pl >= 50 then return 4 end
-    if pl >= 25 then return 3 end
-    if pl >= 10 then return 2 end
-    if pl >= 1 then return 1 end
-    return 0
-end
-
-local function dayBand(days)
-    days = days or 0
-    if days >= 121 then return 5 end
-    if days >= 61 then return 4 end
-    if days >= 31 then return 3 end
-    if days >= 15 then return 2 end
-    if days >= 1 then return 1 end
-    return 0
-end
+local TIME_DAYS_PER_STEP = 3
+local TIME_LEG_MAX = 10
+local POWER_PL_PER_STEP = 2
+local RANK_MAX = 40
+-- Design: 14-day activity window for who counts in avg PL (SP: always local player).
+local ACTIVITY_WINDOW_DAYS = 14
 
 function KnoxSystem.WorldRank.getWorldAgeDays()
     local ok, days = pcall(function()
@@ -42,17 +32,66 @@ function KnoxSystem.WorldRank.getWorldAgeDays()
     return 0
 end
 
---- Integer World Rank: higher = harder world (0+)
+function KnoxSystem.WorldRank.timeLeg(days)
+    days = tonumber(days) or 0
+    if days < 0 then days = 0 end
+    local leg = math.floor(days / TIME_DAYS_PER_STEP)
+    if leg > TIME_LEG_MAX then leg = TIME_LEG_MAX end
+    if leg < 0 then leg = 0 end
+    return leg
+end
+
+function KnoxSystem.WorldRank.powerLeg(avgPl)
+    avgPl = tonumber(avgPl) or 0
+    if avgPl < 0 then avgPl = 0 end
+    return math.floor(avgPl / POWER_PL_PER_STEP)
+end
+
+--- Average Personal Level for the power leg.
+--- SP: local player's PL. MP: mean PL of online players (activity window reserved for later MP roster).
+function KnoxSystem.WorldRank.getAveragePersonalLevel(preferPlayer)
+    local sum, n = 0, 0
+    pcall(function()
+        local num = 0
+        if getNumActivePlayers then num = getNumActivePlayers() or 0 end
+        if num < 1 then num = 1 end
+        for i = 0, num - 1 do
+            local p = nil
+            if getSpecificPlayer then p = getSpecificPlayer(i) end
+            if p then
+                local data = KnoxSystem.getPlayerData(p)
+                local pl = data and tonumber(data.personal_level) or 0
+                sum = sum + pl
+                n = n + 1
+            end
+        end
+    end)
+    if n < 1 and preferPlayer then
+        local data = KnoxSystem.getPlayerData(preferPlayer)
+        if data then
+            return tonumber(data.personal_level) or 0
+        end
+    end
+    if n < 1 then return 0 end
+    return sum / n
+end
+
+--- Integer World Rank for UI (and later threat). Higher = harder.
+--- Returns: rank, avgPl, days, timeLeg, powerLeg
+--- (5th value was dayBand; now powerLeg — ZombieObserve only logs it.)
 function KnoxSystem.WorldRank.compute(player)
-    local data = player and KnoxSystem.getPlayerData(player) or nil
-    local pl = data and (data.personal_level or 0) or 0
+    if player then
+        -- Keep local player ModData warm; no effect on formula beyond PL read
+        pcall(function() KnoxSystem.getPlayerData(player) end)
+    end
     local days = KnoxSystem.WorldRank.getWorldAgeDays()
-    -- Blend-ish single number: 10*max(bands) + weighted sum (readable, coarse)
-    local pb = plBand(pl)
-    local db = dayBand(days)
-    local rank = math.floor(pb * 0.55 * 10 + db * 0.45 * 10 + 0.5)
+    local avgPl = KnoxSystem.WorldRank.getAveragePersonalLevel(player)
+    local tLeg = KnoxSystem.WorldRank.timeLeg(days)
+    local pLeg = KnoxSystem.WorldRank.powerLeg(avgPl)
+    local rank = tLeg + pLeg
     if rank < 0 then rank = 0 end
-    return rank, pl, days, pb, db
+    if rank > RANK_MAX then rank = RANK_MAX end
+    return rank, avgPl, days, tLeg, pLeg
 end
 
 function KnoxSystem.WorldRank.label(player)
@@ -60,4 +99,9 @@ function KnoxSystem.WorldRank.label(player)
     return tostring(rank)
 end
 
-print("[KnoxSystem] KS_WorldRank loaded")
+-- Expose constants for tests / debug
+KnoxSystem.WorldRank.TIME_LEG_MAX = TIME_LEG_MAX
+KnoxSystem.WorldRank.RANK_MAX = RANK_MAX
+KnoxSystem.WorldRank.ACTIVITY_WINDOW_DAYS = ACTIVITY_WINDOW_DAYS
+
+print("[KnoxSystem] KS_WorldRank loaded (time/3≤10 + floor(avgPL/2), max 40)")

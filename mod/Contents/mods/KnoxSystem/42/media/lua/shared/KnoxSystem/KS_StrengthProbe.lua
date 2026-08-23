@@ -185,19 +185,15 @@ function KnoxSystem.StrengthProbe.onWeaponHitCharacter(attacker, target, weapon,
         if target and target.isKnockedDown then kd = target:isKnockedDown() and 1 or 0 end
     end)
 
+    -- Quiet by default: melee_hit was duplicating damage channel spam. Shoves still log.
     if bare then
         logApply(attacker, "shove", {
             weapon = wname,
             damage = tonumber(damage) or -1,
             targetKnockedDown = kd,
         })
-    else
-        logApply(attacker, "melee_hit", {
-            weapon = wname,
-            damage = tonumber(damage) or -1,
-            targetKnockedDown = kd,
-        })
     end
+    -- else: skip strength_apply melee_hit (use damage/mod_hit_out instead)
 end
 
 function KnoxSystem.StrengthProbe.onWeaponHitThumpable(attacker, weapon, thumpable)

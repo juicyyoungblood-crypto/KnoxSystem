@@ -20,6 +20,7 @@ require "KnoxSystem/KS_Warrior_Armored"
 require "KnoxSystem/KS_TrackLog"
 require "KnoxSystem/KS_ZombieObserve"
 require "KnoxSystem/KS_WorldZombies"
+require "KnoxSystem/KS_Goblin"
 require "KnoxSystem/KS_Analyze"
 require "KnoxSystem/KS_AnalyzeOverlay"
 require "KnoxSystem/KS_EliteTell"
@@ -184,6 +185,9 @@ local function onPlayerUpdate(player)
         if KnoxSystem.Analyze and KnoxSystem.Analyze.onPlayerUpdate then
             KnoxSystem.Analyze.onPlayerUpdate(player)
         end
+        if KnoxSystem.Modifiers and KnoxSystem.Modifiers.onPlayerUpdateIncoming then
+            KnoxSystem.Modifiers.onPlayerUpdateIncoming(player)
+        end
         if KnoxSystem.DStorage and KnoxSystem.DStorage.onPlayerUpdate then
             KnoxSystem.DStorage.onPlayerUpdate(player)
         end
@@ -202,6 +206,20 @@ end
 -- Melee damage → Melee Proficiency XP + Analyze plate (total damage)
 local function onWeaponHitCharacter(attacker, target, weapon, damage)
     if not attacker or not target then return end
+
+    -- Zombie → player: Heavy Hit / Evolved dealt mult
+    pcall(function()
+        if KnoxSystem.Modifiers and KnoxSystem.Modifiers.onZombieHitPlayer then
+            KnoxSystem.Modifiers.onZombieHitPlayer(attacker, target, weapon, damage)
+        end
+    end)
+
+    -- Player → zombie: stamp + skin/elite DR (heal-back) before Power snip
+    pcall(function()
+        if KnoxSystem.Modifiers and KnoxSystem.Modifiers.onPlayerHitZombie then
+            KnoxSystem.Modifiers.onPlayerHitZombie(attacker, target, weapon, damage)
+        end
+    end)
 
     -- Snapshot HP before our hooks (engine may already have applied vanilla hit)
     local hpBefore = nil
@@ -226,6 +244,17 @@ local function onWeaponHitCharacter(attacker, target, weapon, damage)
     pcall(function()
         if KnoxSystem.Power and KnoxSystem.Power.onWeaponHitCharacter then
             KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
+        end
+    end)
+
+    -- Immunities + Power/System-layer DR after knock/Power
+    pcall(function()
+        if KnoxSystem.Modifiers and KnoxSystem.Modifiers.afterPlayerHitZombie then
+            local bonus = 0
+            if KnoxSystem.Power then
+                bonus = tonumber(KnoxSystem.Power._lastHitBonusDamage) or 0
+            end
+            KnoxSystem.Modifiers.afterPlayerHitZombie(attacker, target, weapon, damage, bonus)
         end
     end)
 
@@ -425,12 +454,61 @@ local function onPlayerGetDamage(player, damageType, damage)
         if instanceof and instanceof(player, "IsoPlayer") then isPlayer = true end
     end)
     if not isPlayer then return end
+
+    local rawType = tostring(damageType or "?")
+    local dtype = string.upper(rawType)
+    local dmg = tonumber(damage) or 0
+    local isDot = (dtype == "BLEEDING" or dtype == "INFECTION" or dtype == "POISON"
+        or dtype == "FOOD_SICKNESS" or dtype == "FOODSICKNESS" or dtype == "COLD"
+        or dtype == "HUNGER" or dtype == "THIRST" or dtype == "FATIGUE")
+
+    -- One-shot type census so we can see what B42 actually sends on claw/bite
+    pcall(function()
+        KnoxSystem._getDmgTypesSeen = KnoxSystem._getDmgTypesSeen or {}
+        if not KnoxSystem._getDmgTypesSeen[rawType] then
+            KnoxSystem._getDmgTypesSeen[rawType] = true
+            if KnoxSystem.Track and KnoxSystem.Track.isChannelOn and KnoxSystem.Track.isChannelOn("damage") then
+                KnoxSystem.Track.log("damage", "getdmg_type_first", {
+                    damageType = rawType,
+                    damage = dmg,
+                    isDot = isDot and 1 or 0,
+                    note = "First time seeing this OnPlayerGetDamage type (census)",
+                })
+            end
+        end
+    end)
+
+    -- Incoming damage log — skip bleed/infection spam
+    if not isDot then
+        pcall(function()
+            if KnoxSystem.Track and KnoxSystem.Track.isChannelOn and KnoxSystem.Track.isChannelOn("damage") then
+                KnoxSystem.Track.log("damage", "player_got_hit", {
+                    reason = "OnPlayerGetDamage",
+                    damageType = rawType,
+                    damage = dmg,
+                    note = "Non-DoT player damage; Heavy Hit may follow as mod_hit_in",
+                })
+            end
+        end)
+    end
+
+    -- Heavy Hit / Evolved via GetDamage (WeaponHit often never fires zombie→player)
+    if not isDot then
+        pcall(function()
+            if KnoxSystem.Modifiers and KnoxSystem.Modifiers.onPlayerCombatDamage then
+                KnoxSystem.Modifiers.onPlayerCombatDamage(player, damageType, damage)
+            end
+        end)
+    end
+
     pcall(function()
         if KnoxSystem.Warrior and KnoxSystem.Warrior.Armored and KnoxSystem.Warrior.Armored.onIncomingHit then
-            KnoxSystem.Warrior.Armored.onIncomingHit(player, {
-                damage = damage or 0,
-                damageType = damageType or "GetDamage",
-            })
+            if not isDot then
+                KnoxSystem.Warrior.Armored.onIncomingHit(player, {
+                    damage = damage or 0,
+                    damageType = damageType or "GetDamage",
+                })
+            end
         end
     end)
     pcall(function()
@@ -499,7 +577,8 @@ local function onWeaponHitTree(attacker, weapon, a1, a2, a3, a4)
 end
 
 local function onWeaponHitXp(owner, weapon, hitObject, damage)
-    -- Fires for various hit types; filter non-zombie world-ish when possible
+    -- B42: KD is often applied AFTER OnWeaponHitCharacter. OnWeaponHitXp is the proven
+    -- late hook to clear knockdown (wiki). Relentless final veto lives here.
     pcall(function()
         if not owner then return end
         local isP = false
@@ -507,13 +586,23 @@ local function onWeaponHitXp(owner, weapon, hitObject, damage)
             if instanceof and instanceof(owner, "IsoPlayer") then isP = true end
         end)
         if not isP then return end
-        if hitObject ~= nil then
-            local isZ = false
+
+        local isZ = false
+        pcall(function()
+            if hitObject and instanceof and instanceof(hitObject, "IsoZombie") then isZ = true end
+        end)
+
+        if isZ then
             pcall(function()
-                if instanceof and instanceof(hitObject, "IsoZombie") then isZ = true end
+                if KnoxSystem.Modifiers and KnoxSystem.Modifiers.onWeaponHitXpControlVeto then
+                    KnoxSystem.Modifiers.onWeaponHitXpControlVeto(owner, hitObject, weapon, damage)
+                elseif KnoxSystem.Modifiers and KnoxSystem.Modifiers.onWeaponHitXpRelentless then
+                    KnoxSystem.Modifiers.onWeaponHitXpRelentless(owner, hitObject, weapon, damage)
+                end
             end)
-            if isZ then return end -- combat path already handled
+            return
         end
+
         if KnoxSystem.Warrior and KnoxSystem.Warrior.Melee and KnoxSystem.Warrior.Melee.onWorldWeaponUse then
             KnoxSystem.Warrior.Melee.onWorldWeaponUse(owner, weapon, "weapon_hit_xp")
         end
@@ -530,6 +619,9 @@ end
 if Events.OnWeaponHitThumpable then
     Events.OnWeaponHitThumpable.Add(function(attacker, weapon, thumpable, dmg, a2, a3, a4)
         pcall(function()
+            if KnoxSystem.Modifiers and KnoxSystem.Modifiers.onZombieOrPlayerThump then
+                KnoxSystem.Modifiers.onZombieOrPlayerThump(attacker, weapon, thumpable, dmg)
+            end
             if KnoxSystem.Warrior and KnoxSystem.Warrior.Melee and KnoxSystem.Warrior.Melee.onWorldWeaponUse then
                 KnoxSystem.Warrior.Melee.onWorldWeaponUse(attacker, weapon, "hit_thumpable")
             end

@@ -838,6 +838,22 @@ function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
     local setKnockOk, setStaggerOk = -1, -1
 
     if not vanillaControlled then
+        -- Skip Power knock/stagger if Relentless/Anchored (or elite KD immune)
+        local immuneKd, immuneSt = false, false
+        pcall(function()
+            if KnoxSystem.Modifiers and KnoxSystem.Modifiers.getCombatBundle then
+                local b = KnoxSystem.Modifiers.getCombatBundle(target)
+                if b then
+                    immuneKd = b.knockdown_immune and true or false
+                    -- Relentless is KD-only; still allow Power stagger. Anchored blocks both.
+                    immuneSt = (b.stagger_immune or b.knockback_immune) and true or false
+                end
+            end
+        end)
+        if immuneKd and immuneSt then
+            rerollAttempted = 0
+            rerollOutcome = "skipped_mod_immune"
+        else
         rerollAttempted = 1
         rerollOutcome = "miss" -- default until roll decides
         knockChance = (knockPerPower() * pow) + (KNOCK_PER_STR * strReal)
@@ -851,7 +867,7 @@ function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
         end)
         if type(roll) ~= "number" then roll = 0 end
 
-        if roll < knockChance then
+        if (not immuneKd) and roll < knockChance then
             setKnockOk = 0
             local ok = pcall(function()
                 if target.setKnockedDown then
@@ -869,7 +885,7 @@ function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
             else
                 rerollOutcome = "knockdown_set_failed"
             end
-        elseif roll < staggerChance then
+        elseif (not immuneSt) and roll < staggerChance then
             setStaggerOk = 0
             local ok = pcall(function()
                 if target.setStaggerBack then
@@ -888,9 +904,25 @@ function KnoxSystem.Power.onWeaponHitCharacter(attacker, target, weapon, damage)
                 rerollOutcome = "stagger_set_failed"
             end
         else
-            rerollOutcome = "miss"
+            rerollOutcome = immuneKd and "miss_kd_immune" or "miss"
+        end
         end
     end
+
+    -- Final control veto: KD immune and/or Anchored full lock
+    pcall(function()
+        if not KnoxSystem.Modifiers then return end
+        if KnoxSystem.Modifiers.isKnockdownImmune and KnoxSystem.Modifiers.isKnockdownImmune(target) then
+            if KnoxSystem.Modifiers.forceNoKnockdown then
+                KnoxSystem.Modifiers.forceNoKnockdown(target, false)
+            end
+        end
+        if KnoxSystem.Modifiers.isControlLocked and KnoxSystem.Modifiers.isControlLocked(target) then
+            if KnoxSystem.Modifiers.forceNoStagger then
+                KnoxSystem.Modifiers.forceNoStagger(target, false)
+            end
+        end
+    end)
 
     -- Final control flags after our attempt (verify setters stuck)
     local finalKD, finalStagger = readControlFlags(target)

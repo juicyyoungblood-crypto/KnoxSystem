@@ -1,0 +1,508 @@
+# Knox System — zombie Modifiers, Elite Ranks, World Level loadouts
+# SoT for named specials. System Tier base stats remain in world_scaling.yaml.
+# Language: CONTEXT.md | Decisions: ADR 0028–0034
+status: design_locked_grill
+numbers_status: draft_tunable
+impl_status: not_started
+
+# ---------------------------------------------------------------------------
+# References
+# ---------------------------------------------------------------------------
+refs:
+  context: CONTEXT.md
+  adrs:
+    - docs/adr/0028-zombie-modifiers-by-world-rank.md
+    - docs/adr/0029-world-rank-from-average-personal-level.md
+    - docs/adr/0030-vehicle-nest-not-seated-zombie.md
+    - docs/adr/0031-world-level-distinct-from-world-rank.md
+    - docs/adr/0032-modifier-potency-catalog-rows.md
+    - docs/adr/0033-elite-rank-packages.md
+    - docs/adr/0034-goblin-tier-zero.md
+  world_scaling: design/world_scaling.yaml
+
+# ---------------------------------------------------------------------------
+# World Level (driver)
+# ---------------------------------------------------------------------------
+world_level:
+  formula: >
+    clamp( time_leg + power_leg, 0, max_level )
+  time_leg:
+    per_full_days: 3
+    points_per_step: 1
+    max_contribution: 10
+  power_leg:
+    avg_personal_level_divisor: 2   # floor(avgPL / 2)
+    avg_roster:
+      activity_window_days: 14
+      include_offline_living_in_window: true
+      include_dead: false
+      mp_philosophy: hooks_may_lag_design
+  max_level: 40
+  example:
+    day: 20
+    avg_pl: 15
+    time_leg: 6
+    power_leg: 7
+    world_level: 13
+  ui:
+    world_rank_label: World Rank
+    world_rank_tracks: world_level
+  gates:
+    sprinters_min_world_level: 5   # Goblin alone may still sprint — see goblin
+
+# ---------------------------------------------------------------------------
+# System Tier weights — driven by World Level (smooth); tables draft
+# ---------------------------------------------------------------------------
+# Replaces PL+day blend as design SoT for tier weights. Exact curves tunable.
+system_tier_weights:
+  driver: world_level
+  tiers: [0, 1, 2, 3, 4]  # Untouched … Apex (System Tier names — not Elite Rank Apex)
+  # Linear-ish blend draft: at WL0 nearly all T0; at WL40 mass on T3–T4
+  draft_weight_mass_by_world_level:
+    0:  { 0: 95, 1: 5,  2: 0,  3: 0,  4: 0 }
+    5:  { 0: 70, 1: 25, 2: 5,  3: 0,  4: 0 }
+    10: { 0: 45, 1: 35, 2: 15, 3: 5,  4: 0 }
+    20: { 0: 20, 1: 30, 2: 30, 3: 15, 4: 5 }
+    30: { 0: 10, 1: 20, 2: 30, 3: 28, 4: 12 }
+    40: { 0: 5,  1: 15, 2: 30, 3: 30, 4: 20 }
+  interpolate: linear_between_keys
+  note: System Tier still applies baseline hp/dmg/speed/sight/hear mults from world_scaling.
+
+# ---------------------------------------------------------------------------
+# Elite promote + Elite Rank
+# ---------------------------------------------------------------------------
+elite:
+  promote_enabled: true
+  # Chance to become elite at all — scales up with World Level (draft)
+  promote_chance_by_world_level:
+    0: 0.01
+    10: 0.04
+    20: 0.07
+    30: 0.10
+    40: 0.14
+  # Among elites, which Elite Rank — higher ranks unlock/weight with WL
+  rank_weights_by_world_level:
+    # Elite Rank id 1=Apex 2=Elite 3=System Elite 4=System Champion
+    0:  { 1: 100, 2: 0,  3: 0,  4: 0 }
+    10: { 1: 70,  2: 30, 3: 0,  4: 0 }
+    20: { 1: 45,  2: 40, 3: 15, 4: 0 }
+    30: { 1: 25,  2: 40, 3: 28, 4: 7 }
+    40: { 1: 15,  2: 35, 3: 35, 4: 15 }
+  ranks:
+    1:
+      id: elite_rank_apex
+      display: Apex
+      display_zombie: Apex Zombie
+      analyze_label: Apex Zombie
+      note: "NOT System Tier Apex; replaces System Tier name on elites"
+      hp_mult_bonus: 0.25          # +25% HP
+      detection_chance_bonus: 0.25 # +25% detection chance
+      detection_range_mult: 1.0
+      damage_taken_mult: 1.0
+      knockdown_chance_mult: 1.0
+      knockdown_immune: false
+      screech_on_death: false
+    2:
+      id: elite_rank_elite
+      display: Elite
+      display_zombie: Elite Zombie
+      analyze_label: Elite Zombie
+      hp_mult_bonus: 0.50
+      detection_chance_bonus: 0.0
+      detection_range_mult: 1.30   # +30% detection range
+      damage_taken_mult: 0.80      # -20% damage taken
+      knockdown_chance_mult: 1.0
+      knockdown_immune: false
+      screech_on_death: false
+    3:
+      id: elite_rank_system_elite
+      display: System Elite
+      display_zombie: System Elite Zombie
+      analyze_label: System Elite Zombie
+      hp_mult_bonus: 1.00          # +100% HP
+      detection_range_mult: 1.30
+      damage_taken_mult: 0.70      # -30%
+      knockdown_chance_mult: 0.50  # -50% chance to be KD
+      knockdown_immune: false
+      screech_on_death: false
+    4:
+      id: elite_rank_system_champion
+      display: System Champion
+      display_zombie: System Champion Zombie
+      analyze_label: System Champion Zombie
+      hp_mult_bonus: 1.50          # +150% HP
+      detection_range_mult: 1.30
+      damage_taken_mult: 0.50      # -50%
+      knockdown_chance_mult: 0.0
+      knockdown_immune: true
+      screech_on_death: true       # distinct from Screecher living alarm
+  tells:
+    eye_glow: true
+    eye_glow_scales_with_rank: true
+    # Elites: Elite Rank + "Zombie" replaces System Tier name (living + corpse)
+    nameplate_and_corpse: elite_rank_zombie_display
+    non_elite_corpse_name: system_tier_zombie  # e.g. Marked Zombie
+  modifier_loadout: see_loadouts   # elites also roll Modifier Loadout (after Goblin miss)
+
+# ---------------------------------------------------------------------------
+# Modifier loadouts vs World Level
+# ---------------------------------------------------------------------------
+loadouts:
+  stamp_time: spawn_once
+  # Order: Goblin first → on hit stop; else elite promote + loadout
+  stamp_order:
+    - goblin_independent_roll
+    - if_goblin: stop_no_elite_no_loadout
+    - else: system_tier_stats
+    - else: elite_promote_and_rank
+    - else: modifier_loadout
+  unique_family_rule: at_most_one_row_per_potency_family
+  hard_anti_combos:
+    - [screecher, silent]
+    - [anchored, relentless]
+    - [anchored, evolved]
+  soft_anti_combos: []
+
+  non_elite:
+    world_level_0:
+      modifier_count: 0
+    world_level_40:
+      modifier_count: { min: 1, max: 3 }
+      allowed_modifier_tiers: [1, 2, 3]  # never 4
+      tier_bias: upward_with_world_level
+    curve: smooth_interpolate_0_to_40
+    # Draft: count expectation rises with WL; tier mix shifts T1→T3
+    draft_count_weights_by_wl:
+      0:  { 0: 1.0 }
+      10: { 0: 0.6, 1: 0.35, 2: 0.05 }
+      20: { 0: 0.25, 1: 0.45, 2: 0.25, 3: 0.05 }
+      30: { 1: 0.35, 2: 0.45, 3: 0.20 }
+      40: { 1: 0.25, 2: 0.40, 3: 0.35 }
+
+  elite:
+    world_level_0:
+      modifier_count: { min: 1, max: 2 }
+      forced_modifier_tiers: [1]
+    world_level_40:
+      modifier_count: 6
+      spine:
+        tier_4: 1
+        tier_3: { min: 1, max: 2 }
+        tier_2: { min: 1, max: 2 }
+        tier_1_fill: remainder  # so total always 6
+      # Resolve ranges so tier_4 + tier_3 + tier_2 + tier_1 = 6
+    curve: smooth_interpolate_0_to_40
+    draft_midpoints:
+      10: { count: 2, max_tier: 2 }
+      20: { count: 3, max_tier: 3 }
+      30: { count: 5, spine_partial: true }
+
+  pick_rules:
+    - respect_anti_combos
+    - prefer_unused_families
+    - if_slot_tier_exhausted_use_potency_ii_rows_for_that_tier
+    - never_assign_modifier_tier_4_to_non_elite
+    - goblin_special_roll_does_not_consume_loadout_slots
+
+# ---------------------------------------------------------------------------
+# Catalog
+# ---------------------------------------------------------------------------
+modifiers:
+  # ----- Tier 0 -----
+  goblin:
+    id: goblin
+    display: Goblin
+    analyze_label: Goblin
+    modifier_tier: 0
+    family: goblin
+    kind: special
+    rarity:
+      independent_roll: true
+      roll_first: true
+      chance: 0.002   # 1 in 500
+      from_world_level: 0
+      on_hit:
+        skip_modifier_loadout: true
+        skip_elite_promote: true
+        skip_other_modifiers: true
+      stacks_with_loadout: false
+      can_be_elite: false
+    behavior:
+      flee_player: true
+      los_break_despawn_seconds: 15
+      neighborhood:
+        other_zombies_radius_tiles: 12  # draft
+        sprinter_if_others_lt: 5
+        fast_shambler_if_others_gte: 5
+        ignore_world_level_sprinter_gate: true
+      death_loot:
+        rolls: 2
+        pick: equal_weight
+        table:
+          - fullType: Base.Bag_ALICEpack_Army   # Military Bag — verify B42 id at impl
+            label: Military Bag
+          - fullType: Base.Sledgehammer
+            label: Sledgehammer
+          - fullType: Base.Bag_BigHikingBag
+            label: Big Hiking Bag
+          - fullType: Base.AssaultRifle
+            label: M16 with full clip and scope
+            attachments_draft: [scope, full_mag]
+            note: exact weapon/attach ids locked at impl
+          - fullType: Base.Hat_PartyHat_TINT
+            label: Party Hat
+            note: verify B42 party hat id
+          - fullType: Base.SpiffoSuit
+            label: Bunny costume
+            note: placeholder — map to bunny/outfit item at impl
+          - fullType: Base.Katana
+            label: Katana
+    risk: high
+    mp_note: despawn and flee need host authority
+
+  # ----- Tier 1 -----
+  thick_skin:
+    id: thick_skin
+    display: Thick Skin
+    analyze_label: Thick Skin
+    modifier_tier: 1
+    family: thick_skin
+    kind: percent
+    potency: 1
+    effects:
+      damage_taken_mult_blunt: 0.85   # -15%
+
+  thick_skin_2:
+    id: thick_skin_2
+    display: Thick Skin II
+    analyze_label: Thick Skin II
+    modifier_tier: 2
+    family: thick_skin
+    kind: percent
+    potency: 2
+    effects:
+      damage_taken_mult_blunt: 0.70   # -30% (2× reduction of I)
+
+  hardened_skin:
+    id: hardened_skin
+    display: Hardened Skin
+    analyze_label: Hardened Skin
+    modifier_tier: 1
+    family: hardened_skin
+    kind: percent
+    potency: 1
+    effects:
+      damage_taken_mult_blade: 0.85
+
+  hardened_skin_2:
+    id: hardened_skin_2
+    display: Hardened Skin II
+    analyze_label: Hardened Skin II
+    modifier_tier: 2
+    family: hardened_skin
+    kind: percent
+    potency: 2
+    effects:
+      damage_taken_mult_blade: 0.70
+
+  heavy_hit:
+    id: heavy_hit
+    display: Heavy Hit
+    analyze_label: Heavy Hit
+    modifier_tier: 1
+    family: heavy_hit
+    kind: percent
+    potency: 1
+    effects:
+      damage_dealt_mult_player: 1.15
+      thump_damage_mult_doors_windows: 1.25
+
+  heavy_hit_2:
+    id: heavy_hit_2
+    display: Heavy Hit II
+    analyze_label: Heavy Hit II
+    modifier_tier: 2
+    family: heavy_hit
+    kind: percent
+    potency: 2
+    effects:
+      damage_dealt_mult_player: 1.30
+      thump_damage_mult_doors_windows: 1.50
+
+  relentless:
+    id: relentless
+    display: Relentless
+    analyze_label: Relentless
+    modifier_tier: 1
+    family: relentless
+    kind: binary
+    effects:
+      knockdown_immune: true
+      # stagger/knockback still apply unless Anchored
+
+  # ----- Tier 2 -----
+  anchored:
+    id: anchored
+    display: Anchored
+    analyze_label: Anchored
+    modifier_tier: 2
+    family: anchored
+    kind: binary
+    effects:
+      knockback_immune: true
+      stagger_immune: true
+      knockdown_immune: true
+    stamp_rules:
+      forbid_sprinter: true
+
+  sharp_bones:
+    id: sharp_bones
+    display: Sharp Bones
+    analyze_label: Sharp Bones
+    modifier_tier: 2
+    family: sharp_bones
+    kind: on_hit
+    effects:
+      apply_bleed_on_damaging_scratch_or_bite: true
+      require_damage_gt: 0
+
+  sharp_nose:
+    id: sharp_nose
+    display: Sharp Nose
+    analyze_label: Sharp Nose
+    modifier_tier: 2
+    family: sharp_nose
+    kind: detect
+    effects:
+      auto_detect_radius_tiles: 10
+      check_interval_seconds: 1.0
+      require_los: false
+      no_long_memory_follow: true
+
+  system_hardened:
+    id: system_hardened
+    display: System Hardened
+    analyze_label: Sys.Hardened
+    modifier_tier: 2
+    family: system_hardened
+    kind: percent
+    potency: 1
+    effects:
+      damage_taken_mult_system_skills: 0.75   # -25%
+    requires:
+      system_damage_tag_on_hits: true
+
+  system_hardened_2:
+    id: system_hardened_2
+    display: System Hardened II
+    analyze_label: Sys.Hardened II
+    modifier_tier: 3
+    family: system_hardened
+    kind: percent
+    potency: 2
+    effects:
+      damage_taken_mult_system_skills: 0.50   # -50%
+    requires:
+      system_damage_tag_on_hits: true
+
+  # ----- Tier 3 -----
+  smart:
+    id: smart
+    display: Smart
+    analyze_label: Smart
+    modifier_tier: 3
+    family: smart
+    kind: ai
+    effects:
+      doors:
+        on_thump_unlocked: open_immediately
+        chance: 1.0
+        not_if_locked_or_barricaded: true
+      vehicle_nest:
+        enabled: true
+        require_not_chasing: true
+        require_unlocked_vehicle: true
+        enter_chance_on_touch: 0.15
+        stow_fields: [modifiers, hp, inventory, elite_rank, system_tier, knox_moddata]
+        on_player_start_open_door:
+          spawn_in_front_of_player: true
+          no_lunge_seconds: 0.5
+    risk: high
+    mp_note: host authority for nest stow/restore
+
+  silent:
+    id: silent
+    display: Silent
+    analyze_label: Silent
+    modifier_tier: 3
+    family: silent
+    kind: stealth
+    effects:
+      suppress_zombie_vocals: true
+      player_notice_as_deaf_harshness: true
+
+  # ----- Tier 4 (elite loadout only) -----
+  evolved:
+    id: evolved
+    display: Evolved
+    analyze_label: Evolved
+    modifier_tier: 4
+    family: evolved
+    kind: stat
+    elite_loadout_only: true
+    effects:
+      hp_mult: 3.0
+      damage_dealt_mult: 0.5
+
+  screecher:
+    id: screecher
+    display: Screecher
+    analyze_label: Screecher
+    modifier_tier: 4
+    family: screecher
+    kind: alarm
+    elite_loadout_only: true
+    effects:
+      alarm_while_sees_player: true
+      alarm_blocked_if_knocked_down: true
+      alarm_interval_seconds: 2.0
+      # living pulse — not Champion death screech
+
+# ---------------------------------------------------------------------------
+# Analyze
+# ---------------------------------------------------------------------------
+analyze:
+  l1: hp_and_elite_tell
+  l2_mods_line:
+    format: single_long_line
+    join: " - "
+    include: [modifier_labels, elite_rank_zombie_label, sprinter_or_runner_walk]
+    order: [elite_rank_zombie, modifier_tier_desc, name]
+    show_full_list: true
+    elite_rank_examples:
+      - Apex Zombie
+      - Elite Zombie
+      - System Elite Zombie
+      - System Champion Zombie
+  labels_map_note: extend KS_Analyze.MOD_LABELS from this catalog at impl
+
+# ---------------------------------------------------------------------------
+# Deferred / out of package
+# ---------------------------------------------------------------------------
+deferred:
+  - lua_combat_hooks
+  - vehicle_nest_implementation
+  - mp_roster_persistence_hooks
+  - long_memory_follow_modifier  # rejected
+  - potency_iii_plus
+  - exact_b42_item_ids_for_goblin_loot
+  - system_tier_weight_fine_tune_playtest
+
+# ---------------------------------------------------------------------------
+# Supersedes (design SoT)
+# ---------------------------------------------------------------------------
+supersedes_in_world_scaling:
+  - packages.evolution_kit.per_tier_draft.tags  # fixed cumulative kit
+  - packages.evolution_kit.tag_effects_draft    # old tag numbers
+  - packages.elite_layer.elite_extra_draft      # flat elite mult; use elite ranks
+  - spawn_weights.blend personal_level+day as sole driver  # World Level drives

@@ -14,6 +14,7 @@ local DEFAULTS = {
     SpCostEndurance = 2,                          -- 1-5
     PersonalXpPercent = 50,                       -- 10-200; 100 = weight tables as-is
     AllowSprintersIfVanillaOff = true,            -- checkbox
+    GoblinChancePerThousand = 2,                  -- 1-10 → chance = n/1000 (default 0.002 = 1/500)
 }
 
 local _cache = nil
@@ -54,6 +55,7 @@ local function readRaw()
     t.SpCostPower = clamp(t.SpCostPower, 1, 5, 2)
     t.SpCostEndurance = clamp(t.SpCostEndurance, 1, 5, 2)
     t.PersonalXpPercent = clamp(t.PersonalXpPercent, 10, 200, 50)
+    t.GoblinChancePerThousand = clamp(t.GoblinChancePerThousand, 1, 10, 2)
     if t.AllowSprintersIfVanillaOff == nil then
         t.AllowSprintersIfVanillaOff = true
     else
@@ -73,7 +75,7 @@ function KnoxSystem.Sandbox.refresh()
     if not _logged then
         _logged = true
         print(string.format(
-            "[KnoxSystem] Sandbox: PowerDmg%%=%d KnockPts=%d EndStam%%=%d EndEncDmg%%=%d SpPower=%d SpEnd=%d PersXP%%=%d SprintersIfOff=%s",
+            "[KnoxSystem] Sandbox: PowerDmg%%=%d KnockPts=%d EndStam%%=%d EndEncDmg%%=%d SpPower=%d SpEnd=%d PersXP%%=%d SprintersIfOff=%s GoblinPerK=%d (%.4f)",
             _cache.PowerDamagePercentPerLevel,
             _cache.PowerKnockPointsPerLevel,
             _cache.EnduranceStaminaPercentPerLevel,
@@ -81,7 +83,9 @@ function KnoxSystem.Sandbox.refresh()
             _cache.SpCostPower,
             _cache.SpCostEndurance,
             _cache.PersonalXpPercent,
-            tostring(_cache.AllowSprintersIfVanillaOff)
+            tostring(_cache.AllowSprintersIfVanillaOff),
+            _cache.GoblinChancePerThousand,
+            (_cache.GoblinChancePerThousand or 2) / 1000.0
         ))
     end
     return _cache
@@ -129,6 +133,23 @@ end
 
 function KnoxSystem.Sandbox.allowSprintersIfVanillaOff()
     return KnoxSystem.Sandbox.getValue("AllowSprintersIfVanillaOff") and true or false
+end
+
+--- Goblin spawn chance as 0..1 (sandbox per-thousand / 1000). Sole source of rate.
+function KnoxSystem.Sandbox.goblinChance()
+    local n = KnoxSystem.Sandbox.getValue("GoblinChancePerThousand") or 2
+    n = tonumber(n) or 2
+    if n < 1 then n = 1 end
+    if n > 10 then n = 10 end
+    return n / 1000.0
+end
+
+function KnoxSystem.Sandbox.goblinChancePerThousand()
+    local n = KnoxSystem.Sandbox.getValue("GoblinChancePerThousand") or 2
+    n = tonumber(n) or 2
+    if n < 1 then n = 1 end
+    if n > 10 then n = 10 end
+    return n
 end
 
 --- Vanilla lore speed allows sprinters? (Speed enum varies; soft detect)

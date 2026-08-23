@@ -45,6 +45,7 @@ files:
   - design/mod_options.yaml
   - design/occupations.yaml
   - design/world_scaling.yaml
+  - design/zombie_mutations.yaml
   - design/ui.yaml
   - design/moddata_schema.yaml
   - design/classes/warrior.yaml

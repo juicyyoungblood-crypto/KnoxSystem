@@ -112,75 +112,75 @@ assignment:
   re_roll_on_existing: false
 
 # ---------------------------------------------------------------------------
-# What scales (evolution kit + elite layer)
+# What scales (System Tier stats + elite promote)
+# Named Modifiers / Elite Ranks / loadouts: design/zombie_mutations.yaml (SoT)
 # ---------------------------------------------------------------------------
 packages:
   evolution_kit:
     enabled: true
+    note: >
+      Baseline HP/dmg/speed/hear/sight mults per System Tier only.
+      Named tag kit retired — see zombie_mutations.yaml Modifiers.
     per_tier_draft:
       0:
         hp_mult: 1.0
         damage_mult: 1.0
         speed_mult: 1.0
         hearing_mult: 1.0
-        tags: []
+        tags: []  # deprecated cumulative kit; do not stamp
       1:
         hp_mult: 1.15
         damage_mult: 1.10
         speed_mult: 1.05
         hearing_mult: 1.05
-        tags: [tough_skin]
+        tags: []
       2:
         hp_mult: 1.35
         damage_mult: 1.20
         speed_mult: 1.10
         hearing_mult: 1.10
-        tags: [tough_skin, heavy_hit]
+        tags: []
       3:
         hp_mult: 1.60
         damage_mult: 1.35
         speed_mult: 1.15
         hearing_mult: 1.20
-        tags: [tough_skin, heavy_hit, relentless]
+        tags: []
       4:
         hp_mult: 2.00
         damage_mult: 1.50
         speed_mult: 1.20
         hearing_mult: 1.25
-        tags: [tough_skin, heavy_hit, relentless, system_hardened]
+        tags: []
     tag_effects_draft:
-      tough_skin: { damage_taken_mult: 0.9 }
-      heavy_hit: { damage_dealt_mult: 1.15 }
-      relentless: { endurance_damage_to_player_mult: 1.1, stumble_resist: 0.1 }
-      system_hardened:
-        description: >
-          Partial resistance to burst openers (e.g. reduced Charge damage,
-          slightly reduced first-hit spell burst). Keeps high tiers from
-          being free lunch for Warrior/Mage openers.
-        charge_damage_taken_mult: 0.75
-        first_spell_hit_damage_taken_mult: 0.8
+      status: superseded_by_zombie_mutations_yaml
 
   elite_layer:
     enabled: true
     description: >
-      Mostly normal-tier crowd for the roll; a separate rare roll may promote
-      a spawn to Elite (nameplate/tell + extra package) without making every
-      zed a mini-boss.
+      Rare promote to Elite Rank 1–4 packages + Modifier Loadout.
+      Full SoT: design/zombie_mutations.yaml (elite + loadouts).
+    so_t: design/zombie_mutations.yaml
     base_chance_by_tier:
+      # legacy per-System-Tier chances — prefer WL curve in zombie_mutations
       0: 0.00
       1: 0.02
       2: 0.04
       3: 0.07
       4: 0.12
     elite_extra_draft:
-      hp_mult: 1.5
-      damage_mult: 1.25
-      speed_mult: 1.05
-      bonus_tags: 1
-      loot_or_threat_tell: true
+      status: superseded_by_elite_ranks
+
+  modifiers:
+    so_t: design/zombie_mutations.yaml
+
+# World Level drives tier weights + loadouts (see zombie_mutations.world_level)
+world_level:
+  so_t: design/zombie_mutations.yaml
 
 # ---------------------------------------------------------------------------
-# Spawn weight tables (draft)
+# Spawn weight tables (draft) — SUPERSEDED as sole driver by World Level
+# Keep for reference until impl migrates fully to zombie_mutations curves.
 # ---------------------------------------------------------------------------
 # weights_for_tier[t] before normalize. Blend PL table with day table.
 spawn_weights:

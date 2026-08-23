@@ -5,15 +5,29 @@ require "KnoxSystem/KS_ModData"
 require "KnoxSystem/KS_SystemSkills"
 
 KnoxSystem.Analyze = KnoxSystem.Analyze or {}
-KnoxSystem.Analyze.PLATE_REV = 21
+KnoxSystem.Analyze.PLATE_REV = 23
 
+-- Fallback labels; prefer KS_Modifiers.getLabel when present
 KnoxSystem.Analyze.MOD_LABELS = {
     tough_skin = "Thick Skin",
     thick_skin = "Thick Skin",
+    thick_skin_2 = "Thick Skin II",
+    hardened_skin = "Hardened Skin",
+    hardened_skin_2 = "Hardened Skin II",
     heavy_hit = "Heavy Hit",
+    heavy_hit_2 = "Heavy Hit II",
     Heavy_Hit = "Heavy Hit",
     relentless = "Relentless",
+    anchored = "Anchored",
+    sharp_bones = "Sharp Bones",
+    sharp_nose = "Sharp Nose",
     system_hardened = "Sys.Hardened",
+    system_hardened_2 = "Sys.Hardened II",
+    smart = "Smart",
+    silent = "Silent",
+    evolved = "Evolved",
+    screecher = "Screecher",
+    goblin = "Goblin",
     sprinter = "Sprinter",
     runner = "Runner",
 }
@@ -28,6 +42,9 @@ local RARITY_COLOR = {
 }
 
 local MAX_DIST = 14.0
+-- Cap how many nearby zeds we full-test per update (after distance prefilter).
+-- Old code only scanned list indices 0..119, so new-cell packs often had 0 plates.
+local MAX_NEARBY_PLATES = 80
 -- Only treat as "engine faded" when alpha is in (0, MIN) — NOT when alpha is 0
 -- (many zombies report getAlpha=0 while fully drawn → was hiding almost all plates)
 local MIN_ALPHA = 0.15
@@ -378,7 +395,13 @@ function KnoxSystem.Analyze.formatModsLine(z)
     if #ids == 0 then return nil end
     local labels = {}
     for _, id in ipairs(ids) do
-        local lab = KnoxSystem.Analyze.MOD_LABELS[id] or KnoxSystem.Analyze.MOD_LABELS[id:lower()]
+        local lab = nil
+        if KnoxSystem.Modifiers and KnoxSystem.Modifiers.getLabel then
+            lab = KnoxSystem.Modifiers.getLabel(id)
+        end
+        if not lab then
+            lab = KnoxSystem.Analyze.MOD_LABELS[id] or KnoxSystem.Analyze.MOD_LABELS[id:lower()]
+        end
         if not lab then
             lab = id:gsub("_", " ")
             lab = lab:gsub("(%a)([%w]*)", function(a, b) return a:upper() .. b:lower() end)
@@ -392,10 +415,13 @@ local function eliteLabel(z)
     local md = nil
     pcall(function() md = z:getModData() end)
     if not md or not md.knoxElite then return nil end
-    local tier = num(md.knoxTier, 0)
+    if md.knoxEliteLabel and tostring(md.knoxEliteLabel) ~= "" then
+        return tostring(md.knoxEliteLabel)
+    end
     local name = tostring(md.knoxTierName or "")
-    if name == "" then name = "Elite" end
-    return string.format("* ELITE T%s %s *", tostring(tier), name)
+    if name == "" then name = "Elite Zombie" end
+    if not name:find("Zombie") then name = name .. " Zombie" end
+    return name
 end
 
 local function upsertPlate(z, vis, dmgText)
@@ -579,36 +605,66 @@ function KnoxSystem.Analyze.onPlayerUpdate(player)
     if not list then return end
     local n = 0
     pcall(function() n = list:size() end)
+    if n < 1 then return end
 
-    local seenNow = {}
-    for i = 0, math.min(n, 120) - 1 do
+    local px, py = 0, 0
+    pcall(function()
+        px = num(player:getX(), 0)
+        py = num(player:getY(), 0)
+    end)
+    local maxDist2 = MAX_DIST * MAX_DIST
+
+    -- Pass 1: full list, cheap distance only (fixes new-cell / dense packs where
+    -- nearby zeds are not in the first 120 list slots).
+    local nearby = {}
+    for i = 0, n - 1 do
         local z = nil
         pcall(function() z = list:get(i) end)
         if z then
-            local ok, vis = KnoxSystem.Analyze.canSeeTarget(player, z)
-            if ok then
-                local key = zKey(z)
-                seenNow[key] = true
-                local prevDmg = plates[key] and plates[key].dmg or nil
-                local prevBorn = plates[key] and plates[key].dmgBorn or nil
-                upsertPlate(z, vis, nil)
-                -- Clear corpse-hold once zombie is visible again
-                if plates[key] then plates[key].goneAt = nil end
-                if prevDmg and prevBorn and (t - prevBorn) <= DMG_LIFE_MS then
-                    plates[key].dmg = prevDmg
-                    plates[key].dmgBorn = prevBorn
-                end
-                if not l2 then
-                    plates[key].mods = nil
-                    plates[key].dmg = nil
-                end
-                -- If zombie just died but still in list, freeze death timer for dmg hold
-                pcall(function()
-                    if z.isDead and z:isDead() and plates[key] and plates[key].dmg then
-                        if not plates[key].goneAt then plates[key].goneAt = t end
-                    end
-                end)
+            local okd, dist2 = false, 999999
+            pcall(function()
+                local dx = px - num(z:getX(), 0)
+                local dy = py - num(z:getY(), 0)
+                dist2 = dx * dx + dy * dy
+                okd = true
+            end)
+            if okd and dist2 <= maxDist2 then
+                nearby[#nearby + 1] = { z = z, d2 = dist2 }
             end
+        end
+    end
+    -- Prefer closest if too many in range
+    if #nearby > MAX_NEARBY_PLATES then
+        table.sort(nearby, function(a, b) return a.d2 < b.d2 end)
+        while #nearby > MAX_NEARBY_PLATES do
+            nearby[#nearby] = nil
+        end
+    end
+
+    local seenNow = {}
+    for _, entry in ipairs(nearby) do
+        local z = entry.z
+        local ok, vis = KnoxSystem.Analyze.canSeeTarget(player, z)
+        if ok then
+            local key = zKey(z)
+            seenNow[key] = true
+            local prevDmg = plates[key] and plates[key].dmg or nil
+            local prevBorn = plates[key] and plates[key].dmgBorn or nil
+            upsertPlate(z, vis, nil)
+            if plates[key] then plates[key].goneAt = nil end
+            if prevDmg and prevBorn and (t - prevBorn) <= DMG_LIFE_MS then
+                plates[key].dmg = prevDmg
+                plates[key].dmgBorn = prevBorn
+            end
+            if not l2 then
+                plates[key].mods = nil
+                plates[key].dmg = nil
+            end
+            pcall(function()
+                if z.isDead and z:isDead() and plates[key] and plates[key].dmg then
+                    if not plates[key].goneAt then plates[key].goneAt = t end
+                end
+            end)
         end
     end
     for key, p in pairs(plates) do

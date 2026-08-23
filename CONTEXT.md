@@ -131,17 +131,101 @@ _Avoid_: energy (ambiguous with endurance/stamina), MP only in UI shorthand if n
 ### World threat
 
 **World Rank**:
-The player-facing label on the System Tab for how hard the world currently is (greater chance of higher-tier and elite System-touched zombies). A coarse rising number: higher means harder. Replaces the working name “Knox Threat Level” in UI copy.
-_Avoid_: Knox Threat Level (legacy), World Level (ambiguous with Personal Level), difficulty (sandbox preset), heat, Personal Level
+The player-facing System Tab readout for how hard the world is. It follows **World Level** (same progression story)—not a second independent formula. Higher means harder Modifier loadouts and higher System Tier pressure.
+_Avoid_: Knox Threat Level (legacy), treating Rank as unrelated to World Level, difficulty (sandbox preset)
+
+**World Level**:
+The world progression integer that drives System Tier spawn weights, Modifier Loadout intensity, and sprinter unlock (sprinters only at World Level 5+). Design: **time leg** +1 per 3 in-game days (**time leg max +10**) plus **power leg** +1 per 2 average Personal Levels of the relevant roster (**floor**). Example: day 20 and avg PL 15 → 6 + 7 = **13**. **World Level caps at 40** (high-end loadouts and tier weights). Roster average uses a **14-day** activity window (including offline living while in-window).
+_Avoid_: Personal Level alone, System Tier, Modifier Tier, silent second Rank formula
 
 **System Tier**:
-The mutation/threat band stamped onto a zombie at spawn (Untouched through Apex). Frozen for that zombie’s lifetime under spawn-time assignment.
-_Avoid_: zombie level (ambiguous with Personal Level), XP level, World Rank (that is the survivor’s world-pressure readout)
+The base threat band stamped onto a zombie at spawn (Untouched through Apex in the current band set). Frozen for that zombie’s lifetime. Baseline stat package (health, damage, speed, senses). Spawn weights shift with **World Level**. Sprinter chance is a speed flag only when World Level allows sprinters; not a Modifier.
+_Avoid_: zombie level, World Rank, World Level (as the zed’s band name), Modifier Tier
+
+**Modifier Potency Rank**:
+Percentage-only catalog variants (Thick Skin / Hardened Skin / Heavy Hit / System Hardened). Each rank is its **own catalog row and id** (e.g. `thick_skin`, `thick_skin_2`) with a **fixed Modifier Tier** (I at the family’s base tier, II one tier higher). **II doubles** the base percentage of I. Binary Modifiers and Evolved do not use potency ranks. At most one row from a family in a loadout.
+_Avoid_: stacking the same id twice, Evolved II, System Tier as potency
 
 **Elite**:
-A rare promote on top of a System Tier: stronger package. Player-visible tell while alive: eye glow (elites only in base design). On death, the corpse uses the tier name (e.g. Marked Zombie). World Rank on the System Tab remains the survivor’s coarse world-pressure summary.
-_Avoid_: boss (unless a future named encounter), miniboss spam
+A promote on top of a System Tier: the zombie has an **Elite Rank** (not a flat yes/no package alone). Living tell: eye glow. Player-facing name for elites is **Elite Rank + “Zombie”** (e.g. Apex Zombie, System Champion Zombie)—this **replaces** System Tier names on elite corpses and elite name presentation. Non-elites still use System Tier names (e.g. Marked Zombie).
+_Avoid_: boss (unless named encounter), miniboss spam, showing System Tier name on an elite instead of Elite Rank
+
+**Elite Rank**:
+The four-step elite ladder stamped when a zombie is elite-promoted: **(1) Apex**, **(2) Elite**, **(3) System Elite**, **(4) System Champion**. Display forms: **Apex Zombie**, **Elite Zombie**, **System Elite Zombie**, **System Champion Zombie**. Each rank has a fixed stat package (HP, detection, damage taken, knockdown rules; Champion also death-screech). Higher ranks are rarer as World Level rises. **Elite Rank “Apex” is not System Tier Apex** (Untouched–Apex band).
+_Avoid_: System Tier Apex (different axis), Modifier Tier, World Level
 
 **Eye Glow**:
-Subtle visual on **elite** living zombies only (base design); intensity/size may still scale with elite strength. Non-elite tiers have no eye glow.
-_Avoid_: full-body shader spam, damage numbers, glow on every Stirred zombie
+Subtle visual on **elite** living zombies only (base design); may intensify with Elite Rank.
+_Avoid_: full-body shader spam, glow on every non-elite
+
+**Modifier**:
+A named System-touched special on a zombie, shown on Analyze when unlocked. Distinct from System Tier, Elite, Elite Rank, World Level, and sprinter. Stable snake_case ids; short Analyze labels. Some percentage Modifiers have separate potency catalog rows (I/II). Goblin is the sole Tier 0 Modifier.
+_Avoid_: Mutation, Elite Mod (umbrella), Trait (PZ), the Knox System product “mod”
+
+**Modifier Tier**:
+Catalog rank 1–4 used when building a Modifier Loadout. Tier 4 is elite-only. Separate from System Tier and World Level.
+_Avoid_: World Rank, World Level, System Tier
+
+**Modifier Loadout**:
+Modifiers stamped at spawn from World Level + Elite rules. Not live-rescaled. High-end elites: exactly six (1× T4, 1–2× T3, 1–2× T2, T1 fill). High-end non-elites: one to three from T1–T3. Low end: non-elites none; elites one or two Tier 1. Hard anti-combos apply. At most one catalog row per potency family.
+_Avoid_: player gear build
+
+**Thick Skin**:
+Tier 1 percentage Modifier: reduced damage from **blunt** weapons. II row exists at Tier 2 (double %).
+_Avoid_: all-weapon DR
+
+**Hardened Skin**:
+Tier 1 percentage Modifier: reduced damage from **bladed** weapons. II row at Tier 2. Can coexist with Thick Skin (different family).
+_Avoid_: Thick Skin
+
+**Heavy Hit**:
+Tier 1 percentage Modifier: increased damage to survivors and to doors/windows. II row at Tier 2.
+_Avoid_: Anchored
+
+**Relentless**:
+Tier 1 binary Modifier: immune to **knockdown** only. Hard anti-combo with Anchored.
+_Avoid_: Anchored
+
+**System Hardened** (Sys.Hardened):
+Tier 2 percentage Modifier: reduced damage from **System-tagged** skills/hits. II row at Tier 3 (double %).
+_Avoid_: all-source DR
+
+**Anchored**:
+Tier 2 binary: immune to knockback, stagger, and knockdown. Hard anti: sprinter, Evolved, Relentless.
+_Avoid_: Relentless alone
+
+**Sharp Bones**:
+Tier 2: damaging scratch/bite applies bleed.
+_Avoid_: infection primary
+
+**Sharp Nose**:
+Tier 2: proximity auto-detect in a design radius; **does not require LOS**. Not long memory follow.
+_Avoid_: ten-times memory
+
+**Smart**:
+Tier 3: if the zombie **thumps an unlocked door, the door opens** (no chance roll). Includes **Vehicle Nest**. After nest restore, about **half a second** before it may lunge/act at the opener.
+_Avoid_: seated passenger, driver
+
+**Evolved**:
+Tier 4: much higher HP, much lower damage dealt. Hard anti with Anchored. No potency II.
+_Avoid_: Elite promote
+
+**Screecher**:
+Tier 4: loud alarm while it sees the survivor and is not knocked down. Hard anti with Silent.
+_Avoid_: normal groan only
+
+**Silent**:
+Tier 3: no usual vocals; notice-by-sound ≈ Deaf harshness. Hard anti with Screecher.
+_Avoid_: footsteps-only stealth
+
+**Vehicle Nest**:
+Under Smart: unlocked vehicle may absorb a non-chasing zombie (chance on touch), stow identity, remove living zed; on survivor starting to open the door, restore in front with a short no-lunge beat.
+_Avoid_: true seat occupancy
+
+**System Skill (damage tag)**:
+Knox System combat (class/System-tagged) vs ordinary vanilla swings—for System Hardened and similar.
+_Avoid_: every action is System
+
+**Goblin**:
+The only **Modifier Tier 0** Modifier. **Rolled first** on every eligible spawn: if Goblin hits, the zombie gets **no** other Modifiers, **no** normal loadout, and **no** Elite Rank promote from the usual path. Rare coward loot-runner (~1 in 500). Flees the survivor; if line of sight stays broken for a design timeout, it despawns. Alone (few nearby zombies) it is a sprinter even before World Level would allow sprinters; in a denser pack it is a fast shambler. On death it always drops two rolls from its own loot table. Can appear from World Level 0.
+_Avoid_: loadout filler after other mods, Elite Rank nameplate as the fantasy

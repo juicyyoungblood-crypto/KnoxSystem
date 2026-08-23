@@ -1,0 +1,3 @@
+# Smart vehicle Modifier uses Vehicle Nest, not seated zombies
+
+The game does not support a real zombie occupying a car seat as a normal passenger. Smart’s vehicle fantasy is **Vehicle Nest**: on contact with an unlocked vehicle while not chasing, a chance roll may stow the zombie’s combat identity (Modifiers, HP, inventory, etc.) onto the vehicle and remove the living zed; when a survivor **starts opening** that vehicle’s door, the stowed zombie spawns in front of them with a short delay (~half second) before animations/AI resume. Doors-only Smart behavior remains a separate, simpler face of the same Modifier or a paired id in the catalog. Rejected: fake seated AI, driving zombies, destroy-without-restore.

@@ -254,8 +254,8 @@ function KnoxSystem.Warrior.Melee.calcBreakdown(player, damage, weapon)
         dmgAfterMelee = damage * meleeEffMult,
         designedDmg = designedDmg,
         designedFromBaseAvg = designedFromBase,
-        xpGain = xp,
-        xpPerDmg = XP_PER_DAMAGE,
+        xpGain = nil, -- silenced from Track (was spam); still applied for Warrior XP below
+        xpPerDmg = nil,
         designLever = "prefer_base_melee_skill_effectiveness",
         effPerLevel = EFF_PER_LEVEL,
         liveMeleeApplied = 0,
@@ -293,9 +293,10 @@ function KnoxSystem.Warrior.Melee.onDealtDamage(player, target, damage, weapon)
     local br = KnoxSystem.Warrior.Melee.calcBreakdown(player, damage, weapon)
     local isWarrior = KnoxSystem.Class.isWarrior(data)
     br.warrior = isWarrior and 1 or 0
+    local meleeXp = damage * (XP_PER_DAMAGE or 1)
 
     if isWarrior then
-        KnoxSystem.Class.addSkillXp(player, "MeleeProficiency", br.xpGain, "melee_dmg")
+        KnoxSystem.Class.addSkillXp(player, "MeleeProficiency", meleeXp, "melee_dmg")
         -- Sharpness dull negation (A2): refund after vanilla applied loss on this hit
         local sharpInfo = KnoxSystem.Warrior.Melee.refundSharpnessLoss(player, weapon, "combat_hit")
         if sharpInfo then

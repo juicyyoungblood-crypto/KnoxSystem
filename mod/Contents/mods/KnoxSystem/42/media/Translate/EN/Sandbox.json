@@ -15,5 +15,7 @@
     "Sandbox_KnoxSystem_PersonalXpPercent": "Personal XP from Skill XP",
     "Sandbox_KnoxSystem_PersonalXpPercent_tooltip": "Scales Personal XP minted from base skill XP. 100 = full weight tables. Default 50 = half. Min 10, Max 200, Default 50.",
     "Sandbox_KnoxSystem_AllowSprintersIfVanillaOff": "Allow Knox Sprinters if Vanilla Sprinters Off",
-    "Sandbox_KnoxSystem_AllowSprintersIfVanillaOff_tooltip": "If checked, Knox world tiers may still stamp sprinter walk types when sandbox zombie speed has no sprinters. If unchecked, Knox never forces sprinters unless vanilla already allows them. Default: Yes."
+    "Sandbox_KnoxSystem_AllowSprintersIfVanillaOff_tooltip": "If checked, Knox world tiers may still stamp sprinter walk types when sandbox zombie speed has no sprinters. If unchecked, Knox never forces sprinters unless vanilla already allows them. Default: Yes.",
+    "Sandbox_KnoxSystem_GoblinChancePerThousand": "Goblin Chance (per thousand)",
+    "Sandbox_KnoxSystem_GoblinChancePerThousand_tooltip": "Chance a newly stamped zombie is a Goblin (exclusive: no Elite Rank, no other Modifiers). Value is per thousand: 1 = 0.1% (1/1000), 2 = 0.2% (1/500, default), 10 = 1% (1/100). Min 1, Max 10, Default 2."
 }
