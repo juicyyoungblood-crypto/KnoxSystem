@@ -1,0 +1,6 @@
+UI_KnoxSystem = "Knox System",
+UI_KnoxSystem_SystemTab = "System",
+UI_KnoxSystem_WorldRank = "World Rank",
+UI_KnoxSystem_UnspentSP = "Unspent SP",
+UI_KnoxSystem_DeathClaimed = "The System Has Claimed You",
+UI_KnoxSystem_OpenHint = "Open character sheet → System tab (or press O)",
